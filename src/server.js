@@ -1,0 +1,218 @@
+const express = require('express');
+const path = require('path');
+const config = require('./config');
+const { initializeStorage, listWorkers, getWorker } = require('./services/storage');
+const { processIncomingMessage, approveWorker, rejectWorker } = require('./services/workerFlow');
+const {
+  createSession,
+  parseCookies,
+  setSessionCookie,
+  clearSessionCookie,
+  validateCredentials,
+  requireAdmin,
+  verifySession
+} = require('./services/auth');
+
+const app = express();
+
+app.use(express.json({ limit: '2mb' }));
+app.use(express.urlencoded({ extended: false }));
+app.use('/admin/assets', express.static(path.join(config.publicDir, 'assets')));
+
+function summarizeError(error) {
+  return {
+    message: error.message,
+    response: error.response ? error.response.data : null
+  };
+}
+
+app.get('/health', (_req, res) => {
+  res.json({
+    ok: true,
+    service: 'atithy-whatsapp-bot',
+    dryRun: config.dryRun,
+    webhookUrl: `${config.publicBaseUrl}/webhook`,
+    whatsappConfigured: Boolean(config.whatsappToken && config.whatsappPhoneNumberId),
+    firebaseConfigured: Boolean(
+      config.googleApplicationCredentials ||
+        (config.firebaseProjectId && config.firebaseClientEmail && config.firebasePrivateKey)
+    ),
+    reviewerPhone: config.reviewerPhone
+  });
+});
+
+app.get('/webhook', (req, res) => {
+  const mode = req.query['hub.mode'];
+  const token = req.query['hub.verify_token'];
+  const challenge = req.query['hub.challenge'];
+
+  if (mode === 'subscribe' && token === config.whatsappVerifyToken) {
+    return res.status(200).send(challenge);
+  }
+
+  return res.sendStatus(403);
+});
+
+app.post('/webhook', async (req, res) => {
+  try {
+    let processedMessages = 0;
+    let processedStatuses = 0;
+
+    for (const entry of req.body.entry || []) {
+      for (const change of entry.changes || []) {
+        const value = change.value || {};
+        const messages = value.messages || [];
+        const statuses = value.statuses || [];
+
+        for (const message of messages) {
+          if (!message.from) continue;
+          processedMessages += 1;
+          console.log(
+            '[WEBHOOK] Incoming message',
+            JSON.stringify(
+              {
+                from: message.from,
+                type: message.type,
+                text: message.text && message.text.body ? message.text.body : null,
+                interactiveReplyId:
+                  message.interactive &&
+                  message.interactive.button_reply &&
+                  message.interactive.button_reply.id
+                    ? message.interactive.button_reply.id
+                    : null,
+                id: message.id || null,
+                phoneNumberId:
+                  value.metadata && value.metadata.phone_number_id
+                    ? value.metadata.phone_number_id
+                    : null,
+                displayPhoneNumber:
+                  value.metadata && value.metadata.display_phone_number
+                    ? value.metadata.display_phone_number
+                    : null
+              },
+              null,
+              2
+            )
+          );
+          await processIncomingMessage(message.from, message);
+        }
+
+        for (const status of statuses) {
+          processedStatuses += 1;
+          console.log(
+            '[WEBHOOK] Message status',
+            JSON.stringify(
+              {
+                id: status.id || null,
+                status: status.status || null,
+                recipientId: status.recipient_id || null,
+                errors: Array.isArray(status.errors)
+                  ? status.errors.map((error) => ({
+                      code: error.code || null,
+                      title: error.title || null,
+                      message: error.message || null
+                    }))
+                  : [],
+                phoneNumberId:
+                  value.metadata && value.metadata.phone_number_id
+                    ? value.metadata.phone_number_id
+                    : null,
+                displayPhoneNumber:
+                  value.metadata && value.metadata.display_phone_number
+                    ? value.metadata.display_phone_number
+                    : null
+              },
+              null,
+              2
+            )
+          );
+        }
+      }
+    }
+
+    if (!processedMessages && !processedStatuses) {
+      console.log('[WEBHOOK] Event received with no message payload');
+    }
+
+    return res.sendStatus(200);
+  } catch (error) {
+    console.error('[WEBHOOK_ERROR]', JSON.stringify(summarizeError(error), null, 2));
+    return res.sendStatus(500);
+  }
+});
+
+app.get('/admin/login', (req, res) => {
+  const session = verifySession(parseCookies(req.headers.cookie).atithy_admin_session);
+  if (session) return res.redirect('/admin');
+  return res.sendFile(path.join(config.publicDir, 'admin', 'login.html'));
+});
+
+app.post('/admin/login', (req, res) => {
+  if (!validateCredentials(req.body.username, req.body.password)) {
+    return res.redirect('/admin/login?error=1');
+  }
+  setSessionCookie(res, createSession(req.body.username));
+  return res.redirect('/admin');
+});
+
+app.post('/admin/logout', (_req, res) => {
+  clearSessionCookie(res);
+  return res.redirect('/admin/login');
+});
+
+app.get('/admin', requireAdmin, (_req, res) => {
+  res.sendFile(path.join(config.publicDir, 'admin', 'index.html'));
+});
+
+app.get('/admin/api/workers', requireAdmin, async (_req, res) => {
+  res.json({ workers: await listWorkers(200) });
+});
+
+app.get('/admin/api/workers/:phone', requireAdmin, async (req, res) => {
+  const worker = await getWorker(req.params.phone.replace(/\D/g, ''));
+  if (!worker) return res.status(404).json({ error: 'Worker not found' });
+  return res.json({ worker });
+});
+
+app.post('/admin/api/workers/:phone/approve-aadhaar', requireAdmin, async (req, res) => {
+  try {
+    const result = await approveWorker(req.params.phone.replace(/\D/g, ''), req.admin.username);
+    return res.json({ ok: true, result });
+  } catch (error) {
+    return res.status(400).json({ error: error.message });
+  }
+});
+
+app.post('/admin/api/workers/:phone/reject-aadhaar', requireAdmin, async (req, res) => {
+  try {
+    const worker = await rejectWorker(req.params.phone.replace(/\D/g, ''), req.admin.username, 'reject');
+    return res.json({ ok: true, worker });
+  } catch (error) {
+    return res.status(400).json({ error: error.message });
+  }
+});
+
+app.post('/admin/api/workers/:phone/request-clear-aadhaar', requireAdmin, async (req, res) => {
+  try {
+    const worker = await rejectWorker(req.params.phone.replace(/\D/g, ''), req.admin.username, 'clear');
+    return res.json({ ok: true, worker });
+  } catch (error) {
+    return res.status(400).json({ error: error.message });
+  }
+});
+
+async function start() {
+  try {
+    await initializeStorage();
+  } catch (error) {
+    console.error('[STARTUP] Firebase initialization failed', JSON.stringify(summarizeError(error)));
+  }
+
+  app.listen(config.port, () => {
+    console.log(`Atithy WhatsApp bot listening on port ${config.port}`);
+    console.log(`Webhook callback URL: ${config.publicBaseUrl}/webhook`);
+    console.log(`Reviewer phone: ${config.reviewerPhone}`);
+  });
+}
+
+start();

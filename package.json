@@ -1,0 +1,21 @@
+{
+  "name": "atithy-whatsapp-bot",
+  "version": "1.0.0",
+  "description": "WhatsApp worker onboarding bot for Atithy",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node src/server.js",
+    "check": "node --check src/server.js && node --check src/config.js && node --check src/services/workerFlow.js"
+  },
+  "dependencies": {
+    "axios": "^1.7.9",
+    "cookie": "^0.7.2",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "firebase-admin": "^13.0.2"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

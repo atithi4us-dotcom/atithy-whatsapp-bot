@@ -1,0 +1,44 @@
+services:
+  - type: web
+    name: atithy-whatsapp-bot
+    env: node
+    plan: starter
+    region: singapore
+    buildCommand: npm install
+    startCommand: node src/server.js
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PUBLIC_BASE_URL
+        value: https://atithy-whatsapp-bot.onrender.com
+      - key: WHATSAPP_GRAPH_API_VERSION
+        value: v23.0
+      - key: WHATSAPP_PHONE_NUMBER_ID
+        value: "1093713780472404"
+      - key: AADHAAR_REVIEWER_PHONE
+        value: "919446600809"
+      - key: FIREBASE_PROJECT_ID
+        value: atithi-dev-e9bd6
+      - key: FIREBASE_STORAGE_BUCKET
+        value: atithi-dev-e9bd6.firebasestorage.app
+      - key: WHATSAPP_DRY_RUN
+        value: "false"
+      - key: WHATSAPP_VERIFY_TOKEN
+        sync: false
+      - key: WHATSAPP_ACCESS_TOKEN
+        sync: false
+      - key: FIREBASE_CLIENT_EMAIL
+        sync: false
+      - key: FIREBASE_PRIVATE_KEY
+        sync: false
+      - key: ADMIN_USERNAME
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: SESSION_SECRET
+        sync: false
+      - key: ATITHY_APP_SYNC_URL
+        sync: false
+      - key: ATITHY_APP_SYNC_SECRET
+        sync: false
