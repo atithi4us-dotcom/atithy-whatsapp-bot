@@ -198,9 +198,9 @@ function makeWorker(phone) {
 }
 
 async function askLanguage(phone) {
-  await meta.sendButtons(phone, 'Please choose your language.\nKripya apni language choose karein.', [
+  await meta.sendButtons(phone, 'Please choose your language.\nकृपया अपनी भाषा चुनें।', [
     { id: BUTTONS.LANGUAGE_EN, title: 'English' },
-    { id: BUTTONS.LANGUAGE_HI, title: 'Hindi' }
+    { id: BUTTONS.LANGUAGE_HI, title: 'हिन्दी' }
   ]);
 }
 
