@@ -56,6 +56,22 @@ async function sendButtons(to, body, buttons) {
   });
 }
 
+async function sendList(to, body, buttonText, sections) {
+  return sendRequest({
+    messaging_product: 'whatsapp',
+    to,
+    type: 'interactive',
+    interactive: {
+      type: 'list',
+      body: { text: body },
+      action: {
+        button: buttonText,
+        sections
+      }
+    }
+  });
+}
+
 async function sendImageById(to, mediaId, caption) {
   return sendRequest({
     messaging_product: 'whatsapp',
@@ -106,6 +122,7 @@ async function downloadMedia(mediaId) {
 module.exports = {
   sendText,
   sendButtons,
+  sendList,
   sendImageById,
   sendDocumentById,
   downloadMedia

@@ -4,6 +4,7 @@ const storage = require('./storage');
 const { syncApprovedWorker } = require('./atithySync');
 
 const STATUS = {
+  AWAITING_LANGUAGE: 'awaiting_language',
   AWAITING_INTEREST: 'awaiting_interest',
   NOT_INTERESTED: 'not_interested',
   AWAITING_NAME: 'awaiting_name',
@@ -17,6 +18,8 @@ const STATUS = {
 };
 
 const BUTTONS = {
+  LANGUAGE_EN: 'language_en',
+  LANGUAGE_HI: 'language_hi',
   INTEREST_YES: 'interest_yes',
   INTEREST_NO: 'interest_no',
   GENDER_MALE: 'gender_male',
@@ -25,8 +28,31 @@ const BUTTONS = {
   CONSENT_NO: 'aadhaar_consent_no'
 };
 
+const DISTRICTS = [
+  'Thiruvananthapuram',
+  'Kollam',
+  'Pathanamthitta',
+  'Alappuzha',
+  'Kottayam',
+  'Idukki',
+  'Ernakulam',
+  'Thrissur',
+  'Palakkad',
+  'Malappuram',
+  'Kozhikode',
+  'Wayanad',
+  'Kannur',
+  'Kasaragod'
+];
+
 function now() {
   return new Date().toISOString();
+}
+
+function isRecent(isoDate, windowMs = 30000) {
+  if (!isoDate) return false;
+  const time = Date.parse(isoDate);
+  return Number.isFinite(time) && Date.now() - time < windowMs;
 }
 
 function getText(message) {
@@ -38,6 +64,9 @@ function getReplyId(message) {
     (message.interactive &&
       message.interactive.button_reply &&
       message.interactive.button_reply.id) ||
+    (message.interactive &&
+      message.interactive.list_reply &&
+      message.interactive.list_reply.id) ||
     ''
   );
 }
@@ -46,7 +75,23 @@ function normalizePhone(phone) {
   return String(phone || '').replace(/\D/g, '');
 }
 
-function buildIntro() {
+function buildIntro(language = 'en') {
+  if (language === 'hi') {
+    return [
+      'Atithy mein aapka swagat hai.',
+      '',
+      'Atithy Kerala mein workers ko daily job opportunities share karta hai.',
+      '',
+      'Aapko helper work, loading/unloading, packing/sorting, house shifting, hotel/restaurant helper, shop/supermarket helper, factory helper, cleaning, farm work, aur event setup jaise jobs mil sakte hain.',
+      '',
+      'Har job ke liye aapko date, time, job details, workplace/customer contact number, aur location details milenge.',
+      '',
+      'Job complete karne ke baad payment customer se collect kiya ja sakta hai.',
+      '',
+      'Aap lagbhag Rs 1000 se Rs 1200 per day kama sakte hain.'
+    ].join('\n');
+  }
+
   return [
     'Welcome to Atithy.',
     '',
@@ -62,10 +107,77 @@ function buildIntro() {
   ].join('\n');
 }
 
+function lang(worker) {
+  return worker && worker.language === 'hi' ? 'hi' : 'en';
+}
+
+function textFor(language, key) {
+  const messages = {
+    en: {
+      languagePrompt: 'Please choose your language.',
+      interested: 'Are you interested to join Atithy as a worker?',
+      notNow: 'Okay. You can message us again later if you want to join Atithy.',
+      chooseOption: 'Please choose an option below.',
+      name: 'Please send your full name.',
+      gender: 'Please select your gender.',
+      districtIntro: 'Please select your current district in Kerala.',
+      districtList1: 'Kerala districts - list 1',
+      districtList2: 'Kerala districts - list 2',
+      aadhaarConsent: [
+        'Aadhaar verification consent',
+        '',
+        'By selecting I agree, you allow Atithy to collect and store your Aadhaar card only for worker identity verification and onboarding approval.'
+      ].join('\n'),
+      aadhaarUpload: 'Please upload your Aadhaar card as a clear image or PDF.',
+      aadhaarRequired: 'Aadhaar consent is required to complete worker onboarding.',
+      aadhaarReceived: 'Thank you. Your Aadhaar has been received and is now under verification.',
+      aadhaarPending: 'Your Aadhaar is still under verification. We will update you soon.',
+      approvedAlready: 'Your Atithy worker onboarding is already complete. You are active for Atithy jobs.',
+      complete: 'Your Atithy worker onboarding is complete. Your profile is now active. You will receive available job details through Atithy.',
+      clearer: 'Please upload a clearer Aadhaar image or PDF. Make sure all details are readable.',
+      rejected: 'Your Aadhaar could not be verified. Please upload a valid Aadhaar card again.'
+    },
+    hi: {
+      languagePrompt: 'Kripya apni language choose karein.',
+      interested: 'Kya aap Atithy worker ke roop mein join karna chahte hain?',
+      notNow: 'Theek hai. Atithy join karna ho to baad mein phir message karein.',
+      chooseOption: 'Kripya neeche diya hua option choose karein.',
+      name: 'Kripya apna full name bhejein.',
+      gender: 'Kripya apna gender select karein.',
+      districtIntro: 'Kripya Kerala mein apna current district select karein.',
+      districtList1: 'Kerala districts - list 1',
+      districtList2: 'Kerala districts - list 2',
+      aadhaarConsent: [
+        'Aadhaar verification consent',
+        '',
+        'I agree select karne par aap Atithy ko worker identity verification aur onboarding approval ke liye Aadhaar card collect aur store karne ki permission dete hain.'
+      ].join('\n'),
+      aadhaarUpload: 'Kripya apna Aadhaar card clear image ya PDF ke roop mein upload karein.',
+      aadhaarRequired: 'Worker onboarding complete karne ke liye Aadhaar consent zaroori hai.',
+      aadhaarReceived: 'Thank you. Aapka Aadhaar mil gaya hai aur verification ke liye bhej diya gaya hai.',
+      aadhaarPending: 'Aapka Aadhaar abhi verification mein hai. Hum jaldi update denge.',
+      approvedAlready: 'Aapka Atithy worker onboarding pehle se complete hai. Aap Atithy jobs ke liye active hain.',
+      complete: 'Aapka Atithy worker onboarding complete ho gaya hai. Aapka profile ab active hai. Available job details Atithy ke through milenge.',
+      clearer: 'Kripya Aadhaar ki clearer image ya PDF upload karein. Saari details readable honi chahiye.',
+      rejected: 'Aapka Aadhaar verify nahi ho paya. Kripya valid Aadhaar card phir se upload karein.'
+    }
+  };
+  return messages[language][key] || messages.en[key];
+}
+
+function buildDistrictId(district) {
+  return `district_${district.toLowerCase().replace(/[^a-z0-9]+/g, '_')}`;
+}
+
+function districtFromReply(replyId) {
+  return DISTRICTS.find((district) => buildDistrictId(district) === replyId) || null;
+}
+
 function makeWorker(phone) {
   return {
     phone,
-    status: STATUS.AWAITING_INTEREST,
+    status: STATUS.AWAITING_LANGUAGE,
+    language: null,
     name: null,
     gender: null,
     currentPlace: null,
@@ -80,16 +192,28 @@ function makeWorker(phone) {
     source: 'whatsapp',
     createdAt: now(),
     updatedAt: now(),
+    languagePromptSentAt: null,
     history: [{ at: now(), type: 'system', event: 'worker_created' }]
   };
 }
 
-async function sendStart(phone) {
-  await meta.sendText(phone, buildIntro());
-  await meta.sendButtons(phone, 'Are you interested to join Atithy as a worker?', [
-    { id: BUTTONS.INTEREST_YES, title: 'Yes, continue' },
-    { id: BUTTONS.INTEREST_NO, title: 'Not now' }
+async function askLanguage(phone) {
+  await meta.sendButtons(phone, 'Please choose your language.\nKripya apni language choose karein.', [
+    { id: BUTTONS.LANGUAGE_EN, title: 'English' },
+    { id: BUTTONS.LANGUAGE_HI, title: 'Hindi' }
   ]);
+}
+
+async function askInterest(phone, language = 'en') {
+  await meta.sendButtons(phone, textFor(language, 'interested'), [
+    { id: BUTTONS.INTEREST_YES, title: language === 'hi' ? 'Haan' : 'Yes, continue' },
+    { id: BUTTONS.INTEREST_NO, title: language === 'hi' ? 'Abhi nahi' : 'Not now' }
+  ]);
+}
+
+async function sendStart(phone, language = 'en') {
+  await meta.sendText(phone, buildIntro(language));
+  await askInterest(phone, language);
 }
 
 async function createOrStart(phone) {
@@ -97,8 +221,9 @@ async function createOrStart(phone) {
   if (!worker) {
     worker = await storage.saveWorker(phone, makeWorker(phone));
   }
-  await sendStart(phone);
-  await storage.appendHistory(phone, { type: 'outbound', event: 'start_sent' });
+  await updateWorker(phone, { languagePromptSentAt: now() });
+  await askLanguage(phone);
+  await storage.appendHistory(phone, { type: 'outbound', event: 'language_prompt_sent' });
   return worker;
 }
 
@@ -115,34 +240,55 @@ async function updateWorker(phone, patch) {
 }
 
 async function askName(phone) {
-  await meta.sendText(phone, 'Please send your full name.');
+  const worker = await storage.getWorker(phone);
+  await meta.sendText(phone, textFor(lang(worker), 'name'));
 }
 
 async function askGender(phone) {
-  await meta.sendButtons(phone, 'Please select your gender.', [
+  const language = lang(await storage.getWorker(phone));
+  await meta.sendButtons(phone, textFor(language, 'gender'), [
     { id: BUTTONS.GENDER_MALE, title: 'Male' },
     { id: BUTTONS.GENDER_FEMALE, title: 'Female' }
   ]);
 }
 
 async function askPlace(phone) {
-  await meta.sendText(phone, 'Please send your current place in Kerala.');
+  const language = lang(await storage.getWorker(phone));
+  await meta.sendText(phone, textFor(language, 'districtIntro'));
+
+  const firstHalf = DISTRICTS.slice(0, 7);
+  const secondHalf = DISTRICTS.slice(7);
+  await meta.sendList(phone, textFor(language, 'districtList1'), 'Choose district', [
+    {
+      title: 'Districts 1-7',
+      rows: firstHalf.map((district) => ({
+        id: buildDistrictId(district),
+        title: district
+      }))
+    }
+  ]);
+  await meta.sendList(phone, textFor(language, 'districtList2'), 'Choose district', [
+    {
+      title: 'Districts 8-14',
+      rows: secondHalf.map((district) => ({
+        id: buildDistrictId(district),
+        title: district
+      }))
+    }
+  ]);
 }
 
 async function askAadhaarConsent(phone) {
-  const text = [
-    'Aadhaar verification consent',
-    '',
-    'By selecting I agree, you allow Atithy to collect and store your Aadhaar card only for worker identity verification and onboarding approval.'
-  ].join('\n');
-  await meta.sendButtons(phone, text, [
+  const language = lang(await storage.getWorker(phone));
+  await meta.sendButtons(phone, textFor(language, 'aadhaarConsent'), [
     { id: BUTTONS.CONSENT_YES, title: 'I agree' },
     { id: BUTTONS.CONSENT_NO, title: 'I do not agree' }
   ]);
 }
 
 async function askAadhaar(phone) {
-  await meta.sendText(phone, 'Please upload your Aadhaar card as a clear image or PDF.');
+  const worker = await storage.getWorker(phone);
+  await meta.sendText(phone, textFor(lang(worker), 'aadhaarUpload'));
 }
 
 function getMediaFromMessage(message) {
@@ -193,7 +339,7 @@ async function notifyReviewer(worker, media) {
 async function handleAadhaarUpload(phone, message, worker) {
   const incomingMedia = getMediaFromMessage(message);
   if (!incomingMedia) {
-    await meta.sendText(phone, 'Please upload Aadhaar as an image or PDF.');
+    await meta.sendText(phone, textFor(lang(worker), 'aadhaarUpload'));
     return;
   }
 
@@ -222,7 +368,7 @@ async function handleAadhaarUpload(phone, message, worker) {
     storagePath: stored.storagePath
   });
   await notifyReviewer(next, incomingMedia);
-  await meta.sendText(phone, 'Thank you. Your Aadhaar has been received and is now under verification.');
+  await meta.sendText(phone, textFor(lang(next), 'aadhaarReceived'));
 }
 
 async function processWorkerMessage(phone, message) {
@@ -243,14 +389,39 @@ async function processWorkerMessage(phone, message) {
   const text = getText(message);
 
   switch (worker.status) {
+    case STATUS.AWAITING_LANGUAGE: {
+      let language = null;
+      if (replyId === BUTTONS.LANGUAGE_EN || /^(english|en)$/i.test(text)) {
+        language = 'en';
+      }
+      if (replyId === BUTTONS.LANGUAGE_HI || /^hindi$/i.test(text)) {
+        language = 'hi';
+      }
+      if (!language) {
+        if (isRecent(worker.languagePromptSentAt)) return;
+        await updateWorker(phone, { languagePromptSentAt: now() });
+        await askLanguage(phone);
+        return;
+      }
+      await updateWorker(phone, {
+        language,
+        status: STATUS.AWAITING_INTEREST,
+        startSentAt: now()
+      });
+      await sendStart(phone, language);
+      await storage.appendHistory(phone, { type: 'outbound', event: 'start_sent', language });
+      return;
+    }
+
     case STATUS.AWAITING_INTEREST:
       if (replyId === BUTTONS.INTEREST_NO) {
         await updateWorker(phone, { status: STATUS.NOT_INTERESTED });
-        await meta.sendText(phone, 'Okay. You can message us again later if you want to join Atithy.');
+        await meta.sendText(phone, textFor(lang(worker), 'notNow'));
         return;
       }
-      if (replyId !== BUTTONS.INTEREST_YES && !/^yes|continue|start$/i.test(text)) {
-        await sendStart(phone);
+      if (replyId !== BUTTONS.INTEREST_YES && !/^(yes|continue|start)$/i.test(text)) {
+        await meta.sendText(phone, textFor(lang(worker), 'chooseOption'));
+        await askInterest(phone, lang(worker));
         return;
       }
       await updateWorker(phone, { status: STATUS.AWAITING_NAME });
@@ -258,8 +429,8 @@ async function processWorkerMessage(phone, message) {
       return;
 
     case STATUS.NOT_INTERESTED:
-      await updateWorker(phone, { status: STATUS.AWAITING_INTEREST });
-      await sendStart(phone);
+      await updateWorker(phone, { status: STATUS.AWAITING_LANGUAGE });
+      await askLanguage(phone);
       return;
 
     case STATUS.AWAITING_NAME:
@@ -286,14 +457,16 @@ async function processWorkerMessage(phone, message) {
       return;
 
     case STATUS.AWAITING_PLACE:
-      if (!text || text.length < 2) {
-        await askPlace(phone);
+      {
+        const district = districtFromReply(replyId);
+        if (!district) {
+          await askPlace(phone);
+          return;
+        }
+        await updateWorker(phone, { currentPlace: district, status: STATUS.AWAITING_AADHAAR_CONSENT });
+        await askAadhaarConsent(phone);
         return;
       }
-      await updateWorker(phone, { currentPlace: text, status: STATUS.AWAITING_AADHAAR_CONSENT });
-      await askAadhaarConsent(phone);
-      return;
-
     case STATUS.AWAITING_AADHAAR_CONSENT:
       if (replyId === BUTTONS.CONSENT_NO) {
         await updateWorker(phone, {
@@ -305,10 +478,10 @@ async function processWorkerMessage(phone, message) {
             respondedAt: now()
           }
         });
-        await meta.sendText(phone, 'Aadhaar consent is required to complete worker onboarding.');
+        await meta.sendText(phone, textFor(lang(worker), 'aadhaarRequired'));
         return;
       }
-      if (replyId !== BUTTONS.CONSENT_YES && !/^agree|yes$/i.test(text)) {
+      if (replyId !== BUTTONS.CONSENT_YES && !/^(agree|yes)$/i.test(text)) {
         await askAadhaarConsent(phone);
         return;
       }
@@ -330,21 +503,21 @@ async function processWorkerMessage(phone, message) {
       return;
 
     case STATUS.VERIFICATION_PENDING:
-      await meta.sendText(phone, 'Your Aadhaar is still under verification. We will update you soon.');
+      await meta.sendText(phone, textFor(lang(worker), 'aadhaarPending'));
       return;
 
     case STATUS.APPROVED:
-      await meta.sendText(phone, 'Your Atithy worker onboarding is already complete. You are active for Atithy jobs.');
+      await meta.sendText(phone, textFor(lang(worker), 'approvedAlready'));
       return;
 
     case STATUS.REJECTED:
-      await updateWorker(phone, { status: STATUS.AWAITING_INTEREST });
-      await sendStart(phone);
+      await updateWorker(phone, { status: STATUS.AWAITING_LANGUAGE });
+      await askLanguage(phone);
       return;
 
     default:
-      await updateWorker(phone, { status: STATUS.AWAITING_INTEREST });
-      await sendStart(phone);
+      await updateWorker(phone, { status: STATUS.AWAITING_LANGUAGE });
+      await askLanguage(phone);
   }
 }
 
@@ -378,7 +551,7 @@ async function approveWorker(phone, reviewedBy = 'reviewer') {
     reviewedBy,
     syncResult
   });
-  await meta.sendText(phone, 'Your Atithy worker onboarding is complete. Your profile is now active. You will receive available job details through Atithy.');
+  await meta.sendText(phone, textFor(lang(next), 'complete'));
   await meta.sendText(config.reviewerPhone, `Approved and activated Atithy worker +${phone}.`);
   return { worker: next, syncResult };
 }
@@ -405,10 +578,10 @@ async function rejectWorker(phone, reviewedBy = 'reviewer', action = 'reject') {
   });
 
   if (action === 'clear') {
-    await meta.sendText(phone, 'Please upload a clearer Aadhaar image or PDF. Make sure all details are readable.');
+    await meta.sendText(phone, textFor(lang(worker), 'clearer'));
     await meta.sendText(config.reviewerPhone, `Requested clearer Aadhaar from +${phone}.`);
   } else {
-    await meta.sendText(phone, 'Your Aadhaar could not be verified. Please upload a valid Aadhaar card again.');
+    await meta.sendText(phone, textFor(lang(worker), 'rejected'));
     await meta.sendText(config.reviewerPhone, `Rejected Aadhaar for +${phone}.`);
   }
   return next;
