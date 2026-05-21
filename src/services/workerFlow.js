@@ -372,18 +372,21 @@ async function handleAadhaarUpload(phone, message, worker) {
 }
 
 async function processWorkerMessage(phone, message) {
+  let worker = await storage.getWorker(phone);
+  const claim = await storage.claimInboundMessage(phone, message.id || '', worker || makeWorker(phone));
+  if (!claim.claimed) return;
+  worker = claim.worker || worker;
+  if (!worker) {
+    worker = await storage.saveWorker(phone, makeWorker(phone));
+  }
+
   await storage.appendHistory(phone, {
     type: 'inbound',
     event: 'message_received',
+    messageId: message.id || null,
     messageType: message.type || null,
     text: getText(message) || null
   });
-
-  let worker = await storage.getWorker(phone);
-  if (!worker) {
-    await createOrStart(phone);
-    return;
-  }
 
   const replyId = getReplyId(message);
   const text = getText(message);
@@ -516,7 +519,7 @@ async function processWorkerMessage(phone, message) {
       return;
 
     default:
-      await updateWorker(phone, { status: STATUS.AWAITING_LANGUAGE });
+      await updateWorker(phone, { status: STATUS.AWAITING_LANGUAGE, languagePromptSentAt: now() });
       await askLanguage(phone);
   }
 }

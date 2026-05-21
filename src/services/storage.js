@@ -97,6 +97,35 @@ async function appendHistory(phone, event) {
     );
 }
 
+async function claimInboundMessage(phone, messageId, initialWorker) {
+  if (!messageId) return { claimed: true, worker: null };
+
+  const ref = getFirestore().collection('whatsappWorkerOnboarding').doc(phone);
+  return getFirestore().runTransaction(async (transaction) => {
+    const snapshot = await transaction.get(ref);
+    const existing = snapshot.exists ? { phone: snapshot.id, ...snapshot.data() } : null;
+    const processedMessageIds = Array.isArray(existing && existing.processedMessageIds)
+      ? existing.processedMessageIds
+      : [];
+
+    if (processedMessageIds.includes(messageId)) {
+      return { claimed: false, worker: existing };
+    }
+
+    const nextIds = [...processedMessageIds, messageId].slice(-50);
+    const base = existing || initialWorker || { phone };
+    const next = {
+      ...base,
+      phone,
+      processedMessageIds: nextIds,
+      updatedAt: new Date().toISOString()
+    };
+
+    transaction.set(ref, next, { merge: true });
+    return { claimed: true, worker: next };
+  });
+}
+
 async function uploadAadhaar(phone, media) {
   const safeName = (media.filename || `${media.id}.${media.extension || 'bin'}`).replace(/[^a-zA-Z0-9_.-]/g, '_');
   const storagePath = `worker-aadhaar/${phone}/${Date.now()}-${safeName}`;
@@ -127,5 +156,6 @@ module.exports = {
   saveWorker,
   listWorkers,
   appendHistory,
+  claimInboundMessage,
   uploadAadhaar
 };
