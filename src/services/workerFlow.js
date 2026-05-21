@@ -45,6 +45,23 @@ const DISTRICTS = [
   'Kasaragod'
 ];
 
+const DISTRICT_LABELS_HI = {
+  Thiruvananthapuram: 'तिरुवनंतपुरम',
+  Kollam: 'कोल्लम',
+  Pathanamthitta: 'पथानामथिट्टा',
+  Alappuzha: 'अलप्पुझा',
+  Kottayam: 'कोट्टायम',
+  Idukki: 'इडुक्की',
+  Ernakulam: 'एर्नाकुलम',
+  Thrissur: 'त्रिशूर',
+  Palakkad: 'पलक्कड़',
+  Malappuram: 'मलप्पुरम',
+  Kozhikode: 'कोझिकोड',
+  Wayanad: 'वायनाड',
+  Kannur: 'कन्नूर',
+  Kasaragod: 'कासरगोड'
+};
+
 function now() {
   return new Date().toISOString();
 }
@@ -78,17 +95,17 @@ function normalizePhone(phone) {
 function buildIntro(language = 'en') {
   if (language === 'hi') {
     return [
-      'Atithy mein aapka swagat hai.',
+      'Atithy में आपका स्वागत है।',
       '',
-      'Atithy Kerala mein workers ko daily job opportunities share karta hai.',
+      'Atithy Kerala में workers को रोज़ काम के अवसर भेजता है।',
       '',
-      'Aapko helper work, loading/unloading, packing/sorting, house shifting, hotel/restaurant helper, shop/supermarket helper, factory helper, cleaning, farm work, aur event setup jaise jobs mil sakte hain.',
+      'आपको helper work, loading/unloading, packing/sorting, house shifting, hotel/restaurant helper, shop/supermarket helper, factory helper, cleaning, farm work और event setup जैसे काम मिल सकते हैं।',
       '',
-      'Har job ke liye aapko date, time, job details, workplace/customer contact number, aur location details milenge.',
+      'हर काम के लिए आपको तारीख, समय, काम की जानकारी, workplace/customer contact number और location details मिलेंगे।',
       '',
-      'Job complete karne ke baad payment customer se collect kiya ja sakta hai.',
+      'काम पूरा करने के बाद payment customer से collect किया जा सकता है।',
       '',
-      'Aap lagbhag Rs 1000 se Rs 1200 per day kama sakte hain.'
+      'आप लगभग Rs 1000 से Rs 1200 प्रति दिन कमा सकते हैं।'
     ].join('\n');
   }
 
@@ -138,28 +155,28 @@ function textFor(language, key) {
       rejected: 'Your Aadhaar could not be verified. Please upload a valid Aadhaar card again.'
     },
     hi: {
-      languagePrompt: 'Kripya apni language choose karein.',
-      interested: 'Kya aap Atithy worker ke roop mein join karna chahte hain?',
-      notNow: 'Theek hai. Atithy join karna ho to baad mein phir message karein.',
-      chooseOption: 'Kripya neeche diya hua option choose karein.',
-      name: 'Kripya apna full name bhejein.',
-      gender: 'Kripya apna gender select karein.',
-      districtIntro: 'Kripya Kerala mein apna current district select karein.',
-      districtList1: 'Kerala districts - list 1',
-      districtList2: 'Kerala districts - list 2',
+      languagePrompt: 'कृपया अपनी भाषा चुनें।',
+      interested: 'क्या आप Atithy में worker के रूप में जुड़ना चाहते हैं?',
+      notNow: 'ठीक है। Atithy से जुड़ना हो तो बाद में फिर message करें।',
+      chooseOption: 'कृपया नीचे दिया गया option चुनें।',
+      name: 'कृपया अपना पूरा नाम भेजें।',
+      gender: 'कृपया अपना लिंग चुनें।',
+      districtIntro: 'कृपया Kerala में अपना वर्तमान जिला चुनें।',
+      districtList1: 'Kerala जिले - सूची 1',
+      districtList2: 'Kerala जिले - सूची 2',
       aadhaarConsent: [
-        'Aadhaar verification consent',
+        'Aadhaar verification की सहमति',
         '',
-        'I agree select karne par aap Atithy ko worker identity verification aur onboarding approval ke liye Aadhaar card collect aur store karne ki permission dete hain.'
+        'I agree चुनने पर आप Atithy को worker identity verification और onboarding approval के लिए Aadhaar card collect और store करने की अनुमति देते हैं।'
       ].join('\n'),
-      aadhaarUpload: 'Kripya apna Aadhaar card clear image ya PDF ke roop mein upload karein.',
-      aadhaarRequired: 'Worker onboarding complete karne ke liye Aadhaar consent zaroori hai.',
-      aadhaarReceived: 'Thank you. Aapka Aadhaar mil gaya hai aur verification ke liye bhej diya gaya hai.',
-      aadhaarPending: 'Aapka Aadhaar abhi verification mein hai. Hum jaldi update denge.',
-      approvedAlready: 'Aapka Atithy worker onboarding pehle se complete hai. Aap Atithy jobs ke liye active hain.',
-      complete: 'Aapka Atithy worker onboarding complete ho gaya hai. Aapka profile ab active hai. Available job details Atithy ke through milenge.',
-      clearer: 'Kripya Aadhaar ki clearer image ya PDF upload karein. Saari details readable honi chahiye.',
-      rejected: 'Aapka Aadhaar verify nahi ho paya. Kripya valid Aadhaar card phir se upload karein.'
+      aadhaarUpload: 'कृपया अपना Aadhaar card clear image या PDF के रूप में upload करें।',
+      aadhaarRequired: 'Worker onboarding पूरा करने के लिए Aadhaar consent ज़रूरी है।',
+      aadhaarReceived: 'धन्यवाद। आपका Aadhaar मिल गया है और verification के लिए भेज दिया गया है।',
+      aadhaarPending: 'आपका Aadhaar अभी verification में है। हम जल्द update देंगे।',
+      approvedAlready: 'आपका Atithy worker onboarding पहले से पूरा है। आप Atithy काम के लिए active हैं।',
+      complete: 'आपका Atithy worker onboarding पूरा हो गया है। आपकी profile अब active है। उपलब्ध काम की जानकारी आपको Atithy के through मिलेगी।',
+      clearer: 'कृपया Aadhaar की clearer image या PDF upload करें। सभी details readable होनी चाहिए।',
+      rejected: 'आपका Aadhaar verify नहीं हो पाया। कृपया valid Aadhaar card फिर से upload करें।'
     }
   };
   return messages[language][key] || messages.en[key];
@@ -171,6 +188,10 @@ function buildDistrictId(district) {
 
 function districtFromReply(replyId) {
   return DISTRICTS.find((district) => buildDistrictId(district) === replyId) || null;
+}
+
+function districtLabel(district, language = 'en') {
+  return language === 'hi' ? DISTRICT_LABELS_HI[district] || district : district;
 }
 
 function makeWorker(phone) {
@@ -206,8 +227,8 @@ async function askLanguage(phone) {
 
 async function askInterest(phone, language = 'en') {
   await meta.sendButtons(phone, textFor(language, 'interested'), [
-    { id: BUTTONS.INTEREST_YES, title: language === 'hi' ? 'Haan' : 'Yes, continue' },
-    { id: BUTTONS.INTEREST_NO, title: language === 'hi' ? 'Abhi nahi' : 'Not now' }
+    { id: BUTTONS.INTEREST_YES, title: language === 'hi' ? 'हाँ' : 'Yes, continue' },
+    { id: BUTTONS.INTEREST_NO, title: language === 'hi' ? 'अभी नहीं' : 'Not now' }
   ]);
 }
 
@@ -247,8 +268,8 @@ async function askName(phone) {
 async function askGender(phone) {
   const language = lang(await storage.getWorker(phone));
   await meta.sendButtons(phone, textFor(language, 'gender'), [
-    { id: BUTTONS.GENDER_MALE, title: 'Male' },
-    { id: BUTTONS.GENDER_FEMALE, title: 'Female' }
+    { id: BUTTONS.GENDER_MALE, title: language === 'hi' ? 'पुरुष' : 'Male' },
+    { id: BUTTONS.GENDER_FEMALE, title: language === 'hi' ? 'महिला' : 'Female' }
   ]);
 }
 
@@ -258,21 +279,21 @@ async function askPlace(phone) {
 
   const firstHalf = DISTRICTS.slice(0, 7);
   const secondHalf = DISTRICTS.slice(7);
-  await meta.sendList(phone, textFor(language, 'districtList1'), 'Choose district', [
+  await meta.sendList(phone, textFor(language, 'districtList1'), language === 'hi' ? 'जिला चुनें' : 'Choose district', [
     {
-      title: 'Districts 1-7',
+      title: language === 'hi' ? 'जिले 1-7' : 'Districts 1-7',
       rows: firstHalf.map((district) => ({
         id: buildDistrictId(district),
-        title: district
+        title: districtLabel(district, language)
       }))
     }
   ]);
-  await meta.sendList(phone, textFor(language, 'districtList2'), 'Choose district', [
+  await meta.sendList(phone, textFor(language, 'districtList2'), language === 'hi' ? 'जिला चुनें' : 'Choose district', [
     {
-      title: 'Districts 8-14',
+      title: language === 'hi' ? 'जिले 8-14' : 'Districts 8-14',
       rows: secondHalf.map((district) => ({
         id: buildDistrictId(district),
-        title: district
+        title: districtLabel(district, language)
       }))
     }
   ]);
@@ -281,8 +302,8 @@ async function askPlace(phone) {
 async function askAadhaarConsent(phone) {
   const language = lang(await storage.getWorker(phone));
   await meta.sendButtons(phone, textFor(language, 'aadhaarConsent'), [
-    { id: BUTTONS.CONSENT_YES, title: 'I agree' },
-    { id: BUTTONS.CONSENT_NO, title: 'I do not agree' }
+    { id: BUTTONS.CONSENT_YES, title: language === 'hi' ? 'मैं सहमत हूँ' : 'I agree' },
+    { id: BUTTONS.CONSENT_NO, title: language === 'hi' ? 'मैं सहमत नहीं हूँ' : 'I do not agree' }
   ]);
 }
 
@@ -397,7 +418,7 @@ async function processWorkerMessage(phone, message) {
       if (replyId === BUTTONS.LANGUAGE_EN || /^(english|en)$/i.test(text)) {
         language = 'en';
       }
-      if (replyId === BUTTONS.LANGUAGE_HI || /^hindi$/i.test(text)) {
+      if (replyId === BUTTONS.LANGUAGE_HI || /^(hindi|हिंदी|हिन्दी)$/i.test(text)) {
         language = 'hi';
       }
       if (!language) {
@@ -422,7 +443,7 @@ async function processWorkerMessage(phone, message) {
         await meta.sendText(phone, textFor(lang(worker), 'notNow'));
         return;
       }
-      if (replyId !== BUTTONS.INTEREST_YES && !/^(yes|continue|start)$/i.test(text)) {
+      if (replyId !== BUTTONS.INTEREST_YES && !/^(yes|continue|start|हाँ|हां)$/i.test(text)) {
         await meta.sendText(phone, textFor(lang(worker), 'chooseOption'));
         await askInterest(phone, lang(worker));
         return;
@@ -484,7 +505,7 @@ async function processWorkerMessage(phone, message) {
         await meta.sendText(phone, textFor(lang(worker), 'aadhaarRequired'));
         return;
       }
-      if (replyId !== BUTTONS.CONSENT_YES && !/^(agree|yes)$/i.test(text)) {
+      if (replyId !== BUTTONS.CONSENT_YES && !/^(agree|yes|हाँ|हां|सहमत)$/i.test(text)) {
         await askAadhaarConsent(phone);
         return;
       }
