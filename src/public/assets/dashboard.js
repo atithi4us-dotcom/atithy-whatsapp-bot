@@ -37,6 +37,11 @@ function renderWorkers() {
 }
 
 function renderDetails(worker) {
+  const aadhaarUrl =
+    worker.aadhaar && worker.aadhaar.storagePath
+      ? `/admin/api/workers/${encodeURIComponent(worker.phone)}/aadhaar`
+      : '';
+
   detailsEl.innerHTML = `
     <h2>${fmt(worker.name)}</h2>
     <p class="muted">+${worker.phone}</p>
@@ -54,6 +59,11 @@ function renderDetails(worker) {
     </div>
 
     <div class="actions">
+      ${
+        aadhaarUrl
+          ? `<a class="button-link" href="${aadhaarUrl}" target="_blank" rel="noopener">View Aadhaar</a>`
+          : ''
+      }
       <button data-action="approve">Approve Aadhaar</button>
       <button class="danger" data-action="reject">Reject Aadhaar</button>
       <button class="ghost" data-action="clear">Request clear Aadhaar</button>

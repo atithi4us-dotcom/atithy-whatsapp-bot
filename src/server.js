@@ -1,7 +1,7 @@
 const express = require('express');
 const path = require('path');
 const config = require('./config');
-const { initializeStorage, listWorkers, getWorker } = require('./services/storage');
+const { initializeStorage, listWorkers, getWorker, getBucket } = require('./services/storage');
 const { processIncomingMessage, approveWorker, rejectWorker } = require('./services/workerFlow');
 const {
   createSession,
@@ -181,6 +181,30 @@ app.get('/admin/api/workers/:phone', requireAdmin, async (req, res) => {
   const worker = await getWorker(req.params.phone.replace(/\D/g, ''));
   if (!worker) return res.status(404).json({ error: 'Worker not found' });
   return res.json({ worker });
+});
+
+app.get('/admin/api/workers/:phone/aadhaar', requireAdmin, async (req, res) => {
+  try {
+    const worker = await getWorker(req.params.phone.replace(/\D/g, ''));
+    const aadhaar = worker && worker.aadhaar;
+    if (!aadhaar || !aadhaar.storagePath) {
+      return res.status(404).send('Aadhaar file not found');
+    }
+
+    const file = getBucket().file(aadhaar.storagePath);
+    const [exists] = await file.exists();
+    if (!exists) return res.status(404).send('Aadhaar file not found');
+
+    const [metadata] = await file.getMetadata();
+    const contentType = metadata.contentType || aadhaar.mimeType || 'application/octet-stream';
+    const filename = (aadhaar.filename || 'aadhaar').replace(/["\r\n]/g, '_');
+
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
+    file.createReadStream().on('error', () => res.sendStatus(500)).pipe(res);
+  } catch (error) {
+    return res.status(500).send(error.message);
+  }
 });
 
 app.post('/admin/api/workers/:phone/approve-aadhaar', requireAdmin, async (req, res) => {

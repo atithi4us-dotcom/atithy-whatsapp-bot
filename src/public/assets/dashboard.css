@@ -43,6 +43,16 @@ button.ghost {
   color: var(--ink);
 }
 
+.button-link {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 6px;
+  padding: 10px 14px;
+  background: #0b5cab;
+  color: white;
+  text-decoration: none;
+}
+
 .topbar {
   display: flex;
   align-items: center;
