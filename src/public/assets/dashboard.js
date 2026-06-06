@@ -8,14 +8,91 @@ function fmt(value) {
   return value || '-';
 }
 
+function escapeHtml(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function statusClass(status) {
   return `status ${String(status || '').replace(/[^a-z0-9_-]/gi, '_')}`;
+}
+
+function humanize(value) {
+  return String(value || '-')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function formatTime(value) {
+  if (!value) return '-';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString([], {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
 }
 
 function aadhaarSideUrl(worker, side) {
   return worker.aadhaar && worker.aadhaar[side] && worker.aadhaar[side].storagePath
     ? `/admin/api/workers/${encodeURIComponent(worker.phone)}/aadhaar/${side}`
     : '';
+}
+
+function renderHistoryDetail(event) {
+  const details = [];
+  if (event.text) details.push(`<p class="history-text">${escapeHtml(event.text)}</p>`);
+  if (event.messageType) details.push(`<span>Message: ${escapeHtml(event.messageType)}</span>`);
+  if (event.locale) details.push(`<span>Language: ${escapeHtml(event.locale)}</span>`);
+  if (event.storagePath) details.push(`<span>File: ${escapeHtml(event.storagePath)}</span>`);
+  if (event.reviewedBy) details.push(`<span>Reviewer: +${escapeHtml(event.reviewedBy)}</span>`);
+  if (event.syncResult) {
+    const syncStatus = event.syncResult.ok === false ? event.syncResult.error || 'Failed' : 'Done';
+    details.push(`<span>Sync: ${escapeHtml(syncStatus)}</span>`);
+  }
+  return details.length ? `<div class="history-detail">${details.join('')}</div>` : '';
+}
+
+function renderHistory(worker) {
+  const history = Array.isArray(worker.history) ? worker.history : [];
+  if (!history.length) {
+    return `
+      <section class="history">
+        <h3>Chat history</h3>
+        <div class="history-empty">No history recorded yet.</div>
+      </section>
+    `;
+  }
+
+  const rows = history
+    .slice()
+    .sort((a, b) => Date.parse(a.at || '') - Date.parse(b.at || ''))
+    .map(
+      (event) => `
+        <div class="history-row ${escapeHtml(event.type || 'system')}">
+          <div class="history-meta">
+            <span class="history-type">${escapeHtml(humanize(event.type || 'system'))}</span>
+            <span>${escapeHtml(formatTime(event.at))}</span>
+          </div>
+          <strong>${escapeHtml(humanize(event.event))}</strong>
+          ${renderHistoryDetail(event)}
+        </div>
+      `
+    )
+    .join('');
+
+  return `
+    <section class="history">
+      <h3>Chat history</h3>
+      <div class="history-list">${rows}</div>
+    </section>
+  `;
 }
 
 async function fetchJson(url, options) {
@@ -100,6 +177,8 @@ function renderDetails(worker) {
       <button class="ghost" data-action="clearBack">Request clear back</button>
       <button class="ghost" data-action="clearBoth">Request both again</button>
     </div>
+
+    ${renderHistory(worker)}
   `;
 }
 

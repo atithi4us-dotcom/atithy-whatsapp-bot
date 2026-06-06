@@ -170,6 +170,82 @@ button.ghost {
   margin-top: 18px;
 }
 
+.history {
+  margin-top: 24px;
+  border-top: 1px solid var(--line);
+  padding-top: 18px;
+}
+
+.history h3 {
+  margin: 0 0 12px;
+  font-size: 18px;
+}
+
+.history-list {
+  display: grid;
+  gap: 10px;
+  max-height: 360px;
+  overflow: auto;
+  padding-right: 6px;
+}
+
+.history-row {
+  border: 1px solid var(--line);
+  border-left: 4px solid #9aa8b3;
+  border-radius: 6px;
+  padding: 10px 12px;
+  background: #fbfcfd;
+}
+
+.history-row.inbound {
+  border-left-color: #0b5cab;
+}
+
+.history-row.outbound {
+  border-left-color: var(--accent);
+}
+
+.history-row.system {
+  border-left-color: #7a5200;
+}
+
+.history-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+
+.history-type {
+  font-weight: 700;
+}
+
+.history-row strong {
+  display: block;
+}
+
+.history-detail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.history-text {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--ink);
+  white-space: pre-wrap;
+}
+
+.history-empty {
+  color: var(--muted);
+}
+
 .empty {
   color: var(--muted);
 }
