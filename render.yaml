@@ -15,7 +15,7 @@ services:
       - key: WHATSAPP_GRAPH_API_VERSION
         value: v23.0
       - key: WHATSAPP_PHONE_NUMBER_ID
-        value: "1093713780472404"
+        value: "1062619946943630"
       - key: AADHAAR_REVIEWER_PHONE
         value: "919446600809"
       - key: FIREBASE_PROJECT_ID
