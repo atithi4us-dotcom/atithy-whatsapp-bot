@@ -14,6 +14,8 @@ const {
 } = require('./services/auth');
 
 const app = express();
+let startupError = null;
+let lastWebhookError = null;
 
 app.use(express.json({ limit: '2mb' }));
 app.use(express.urlencoded({ extended: false }));
@@ -30,6 +32,7 @@ app.get('/health', (_req, res) => {
   res.json({
     ok: true,
     service: 'atithy-whatsapp-bot',
+    commit: process.env.RENDER_GIT_COMMIT || null,
     dryRun: config.dryRun,
     webhookUrl: `${config.publicBaseUrl}/webhook`,
     whatsappConfigured: Boolean(config.whatsappToken && config.whatsappPhoneNumberId),
@@ -37,7 +40,9 @@ app.get('/health', (_req, res) => {
       config.googleApplicationCredentials ||
         (config.firebaseProjectId && config.firebaseClientEmail && config.firebasePrivateKey)
     ),
-    reviewerPhone: config.reviewerPhone
+    reviewerPhone: config.reviewerPhone,
+    startupError,
+    lastWebhookError
   });
 });
 
@@ -136,7 +141,11 @@ app.post('/webhook', async (req, res) => {
 
     return res.sendStatus(200);
   } catch (error) {
-    console.error('[WEBHOOK_ERROR]', JSON.stringify(summarizeError(error), null, 2));
+    lastWebhookError = {
+      at: new Date().toISOString(),
+      ...summarizeError(error)
+    };
+    console.error('[WEBHOOK_ERROR]', JSON.stringify(lastWebhookError, null, 2));
     return res.sendStatus(500);
   }
 });
@@ -205,7 +214,8 @@ async function start() {
   try {
     await initializeStorage();
   } catch (error) {
-    console.error('[STARTUP] Firebase initialization failed', JSON.stringify(summarizeError(error)));
+    startupError = summarizeError(error);
+    console.error('[STARTUP] Firebase initialization failed', JSON.stringify(startupError));
   }
 
   app.listen(config.port, () => {
