@@ -152,6 +152,7 @@ async function uploadAadhaar(phone, media) {
 module.exports = {
   initializeStorage,
   getFirestore,
+  getBucket,
   getWorker,
   saveWorker,
   listWorkers,
