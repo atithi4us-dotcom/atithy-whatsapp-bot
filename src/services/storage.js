@@ -128,13 +128,17 @@ async function claimInboundMessage(phone, messageId, initialWorker) {
 
 async function uploadAadhaar(phone, media) {
   const safeName = (media.filename || `${media.id}.${media.extension || 'bin'}`).replace(/[^a-zA-Z0-9_.-]/g, '_');
-  const storagePath = `worker-aadhaar/${phone}/${Date.now()}-${safeName}`;
+  const side = media.side ? String(media.side).replace(/[^a-zA-Z0-9_-]/g, '_') : '';
+  const storagePath = ['worker-aadhaar', phone, side, `${Date.now()}-${safeName}`]
+    .filter(Boolean)
+    .join('/');
   const file = getBucket().file(storagePath);
   await file.save(media.buffer, {
     metadata: {
       contentType: media.mimeType || 'application/octet-stream',
       metadata: {
         phone,
+        side,
         source: 'whatsapp',
         mediaId: media.id || ''
       }

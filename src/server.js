@@ -183,10 +183,11 @@ app.get('/admin/api/workers/:phone', requireAdmin, async (req, res) => {
   return res.json({ worker });
 });
 
-app.get('/admin/api/workers/:phone/aadhaar', requireAdmin, async (req, res) => {
+async function streamAadhaarFile(req, res, side) {
   try {
     const worker = await getWorker(req.params.phone.replace(/\D/g, ''));
-    const aadhaar = worker && worker.aadhaar;
+    const allAadhaar = worker && worker.aadhaar;
+    const aadhaar = side && allAadhaar ? allAadhaar[side] : allAadhaar;
     if (!aadhaar || !aadhaar.storagePath) {
       return res.status(404).send('Aadhaar file not found');
     }
@@ -205,6 +206,16 @@ app.get('/admin/api/workers/:phone/aadhaar', requireAdmin, async (req, res) => {
   } catch (error) {
     return res.status(500).send(error.message);
   }
+}
+
+app.get('/admin/api/workers/:phone/aadhaar', requireAdmin, async (req, res) => {
+  return streamAadhaarFile(req, res);
+});
+
+app.get('/admin/api/workers/:phone/aadhaar/:side', requireAdmin, async (req, res) => {
+  const side = req.params.side === 'front' || req.params.side === 'back' ? req.params.side : '';
+  if (!side) return res.status(404).send('Aadhaar file not found');
+  return streamAadhaarFile(req, res, side);
 });
 
 app.post('/admin/api/workers/:phone/approve-aadhaar', requireAdmin, async (req, res) => {
@@ -227,7 +238,25 @@ app.post('/admin/api/workers/:phone/reject-aadhaar', requireAdmin, async (req, r
 
 app.post('/admin/api/workers/:phone/request-clear-aadhaar', requireAdmin, async (req, res) => {
   try {
-    const worker = await rejectWorker(req.params.phone.replace(/\D/g, ''), req.admin.username, 'clear');
+    const worker = await rejectWorker(req.params.phone.replace(/\D/g, ''), req.admin.username, 'clear_both');
+    return res.json({ ok: true, worker });
+  } catch (error) {
+    return res.status(400).json({ error: error.message });
+  }
+});
+
+app.post('/admin/api/workers/:phone/request-clear-aadhaar-front', requireAdmin, async (req, res) => {
+  try {
+    const worker = await rejectWorker(req.params.phone.replace(/\D/g, ''), req.admin.username, 'clear_front');
+    return res.json({ ok: true, worker });
+  } catch (error) {
+    return res.status(400).json({ error: error.message });
+  }
+});
+
+app.post('/admin/api/workers/:phone/request-clear-aadhaar-back', requireAdmin, async (req, res) => {
+  try {
+    const worker = await rejectWorker(req.params.phone.replace(/\D/g, ''), req.admin.username, 'clear_back');
     return res.json({ ok: true, worker });
   } catch (error) {
     return res.status(400).json({ error: error.message });

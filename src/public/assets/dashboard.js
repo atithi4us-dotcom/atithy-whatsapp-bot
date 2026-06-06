@@ -12,6 +12,12 @@ function statusClass(status) {
   return `status ${String(status || '').replace(/[^a-z0-9_-]/gi, '_')}`;
 }
 
+function aadhaarSideUrl(worker, side) {
+  return worker.aadhaar && worker.aadhaar[side] && worker.aadhaar[side].storagePath
+    ? `/admin/api/workers/${encodeURIComponent(worker.phone)}/aadhaar/${side}`
+    : '';
+}
+
 async function fetchJson(url, options) {
   const response = await fetch(url, {
     headers: { 'Content-Type': 'application/json' },
@@ -37,10 +43,12 @@ function renderWorkers() {
 }
 
 function renderDetails(worker) {
-  const aadhaarUrl =
+  const legacyAadhaarUrl =
     worker.aadhaar && worker.aadhaar.storagePath
       ? `/admin/api/workers/${encodeURIComponent(worker.phone)}/aadhaar`
       : '';
+  const aadhaarFrontUrl = aadhaarSideUrl(worker, 'front');
+  const aadhaarBackUrl = aadhaarSideUrl(worker, 'back');
 
   detailsEl.innerHTML = `
     <h2>${fmt(worker.name)}</h2>
@@ -54,19 +62,43 @@ function renderDetails(worker) {
         worker.aadhaarConsent && worker.aadhaarConsent.accepted ? 'Accepted' : '-'
       }</div>
       <div class="field"><span>Review</span>${fmt(worker.review && worker.review.status)}</div>
-      <div class="field"><span>Aadhaar file</span>${fmt(worker.aadhaar && worker.aadhaar.filename)}</div>
-      <div class="field"><span>Storage path</span>${fmt(worker.aadhaar && worker.aadhaar.storagePath)}</div>
+      <div class="field"><span>Aadhaar front file</span>${fmt(
+        worker.aadhaar && worker.aadhaar.front && worker.aadhaar.front.filename
+      )}</div>
+      <div class="field"><span>Aadhaar back file</span>${fmt(
+        worker.aadhaar && worker.aadhaar.back && worker.aadhaar.back.filename
+      )}</div>
+      <div class="field"><span>Front storage path</span>${fmt(
+        worker.aadhaar && worker.aadhaar.front && worker.aadhaar.front.storagePath
+      )}</div>
+      <div class="field"><span>Back storage path</span>${fmt(
+        worker.aadhaar && worker.aadhaar.back && worker.aadhaar.back.storagePath
+      )}</div>
+      <div class="field"><span>Old Aadhaar file</span>${fmt(worker.aadhaar && worker.aadhaar.filename)}</div>
+      <div class="field"><span>Old storage path</span>${fmt(worker.aadhaar && worker.aadhaar.storagePath)}</div>
     </div>
 
     <div class="actions">
       ${
-        aadhaarUrl
-          ? `<a class="button-link" href="${aadhaarUrl}" target="_blank" rel="noopener">View Aadhaar</a>`
+        aadhaarFrontUrl
+          ? `<a class="button-link" href="${aadhaarFrontUrl}" target="_blank" rel="noopener">View Aadhaar Front</a>`
+          : ''
+      }
+      ${
+        aadhaarBackUrl
+          ? `<a class="button-link" href="${aadhaarBackUrl}" target="_blank" rel="noopener">View Aadhaar Back</a>`
+          : ''
+      }
+      ${
+        legacyAadhaarUrl
+          ? `<a class="button-link" href="${legacyAadhaarUrl}" target="_blank" rel="noopener">View Old Aadhaar</a>`
           : ''
       }
       <button data-action="approve">Approve Aadhaar</button>
       <button class="danger" data-action="reject">Reject Aadhaar</button>
-      <button class="ghost" data-action="clear">Request clear Aadhaar</button>
+      <button class="ghost" data-action="clearFront">Request clear front</button>
+      <button class="ghost" data-action="clearBack">Request clear back</button>
+      <button class="ghost" data-action="clearBoth">Request both again</button>
     </div>
   `;
 }
@@ -94,7 +126,9 @@ detailsEl.addEventListener('click', async (event) => {
   const actionMap = {
     approve: 'approve-aadhaar',
     reject: 'reject-aadhaar',
-    clear: 'request-clear-aadhaar'
+    clearFront: 'request-clear-aadhaar-front',
+    clearBack: 'request-clear-aadhaar-back',
+    clearBoth: 'request-clear-aadhaar'
   };
   button.disabled = true;
   try {
