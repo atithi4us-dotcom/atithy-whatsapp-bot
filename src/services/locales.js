@@ -489,6 +489,14 @@ function localeFromLanguageSelection(replyId, text) {
 
   const normalized = normalizeInput(text);
   if (!normalized) return null;
+  const numberedChoice = Number.parseInt(normalized, 10);
+  if (
+    String(numberedChoice) === normalized &&
+    numberedChoice >= 1 &&
+    numberedChoice <= SUPPORTED_LANGUAGES.length
+  ) {
+    return SUPPORTED_LANGUAGES[numberedChoice - 1].locale;
+  }
   for (const [locale, aliases] of Object.entries(LANGUAGE_ALIASES)) {
     if (aliases.some((alias) => normalizeInput(alias) === normalized)) return locale;
   }

@@ -105,16 +105,30 @@ function makeWorker(phone) {
 }
 
 async function askLanguage(phone) {
-  await meta.sendList(phone, 'Please choose your language.\nकृपया अपनी भाषा चुनें।', 'Language', [
-    {
-      title: 'Available languages',
-      rows: SUPPORTED_LANGUAGES.map((language) => ({
-        id: language.id,
-        title: language.title,
-        description: language.subtitle
-      }))
-    }
-  ]);
+  try {
+    await meta.sendList(phone, 'Please choose your language.\nकृपया अपनी भाषा चुनें।', 'Language', [
+      {
+        title: 'Available languages',
+        rows: SUPPORTED_LANGUAGES.map((language) => ({
+          id: language.id,
+          title: language.title,
+          description: language.subtitle
+        }))
+      }
+    ]);
+  } catch (error) {
+    console.error('[LANGUAGE_LIST_ERROR]', error.response ? error.response.data : error.message);
+    await meta.sendText(
+      phone,
+      [
+        'Please choose your language by typing the name or number:',
+        '',
+        ...SUPPORTED_LANGUAGES.map(
+          (language, index) => `${index + 1}. ${language.title} (${language.subtitle})`
+        )
+      ].join('\n')
+    );
+  }
 }
 
 async function askInterest(phone, locale) {
