@@ -67,6 +67,10 @@ function normalizePhone(phone) {
   return String(phone || '').replace(/\D/g, '');
 }
 
+function isResetCommand(text) {
+  return /^(\/reset|reset|restart|start over)$/i.test(text);
+}
+
 function buildDistrictId(district) {
   return `district_${district.toLowerCase().replace(/[^a-z0-9]+/g, '_')}`;
 }
@@ -299,6 +303,29 @@ async function processWorkerMessage(phone, message) {
 
   const replyId = getReplyId(message);
   const text = getText(message);
+
+  if (isResetCommand(text)) {
+    await updateWorker(phone, {
+      status: STATUS.AWAITING_LANGUAGE,
+      language: null,
+      locale: null,
+      name: null,
+      gender: null,
+      currentPlace: null,
+      aadhaarConsent: null,
+      aadhaar: null,
+      review: {
+        status: 'not_started',
+        reviewedBy: null,
+        reviewedAt: null,
+        note: null
+      },
+      languagePromptSentAt: now()
+    });
+    await askLanguage(phone);
+    await storage.appendHistory(phone, { type: 'system', event: 'worker_reset_by_chat_command' });
+    return;
+  }
 
   switch (worker.status) {
     case STATUS.AWAITING_LANGUAGE: {
