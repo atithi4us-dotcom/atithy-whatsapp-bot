@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "node src/server.js",
-    "check": "node --check src/server.js && node --check src/config.js && node --check src/services/workerFlow.js"
+    "check": "node --check src/server.js && node --check src/config.js && node --check src/services/locales.js && node --check src/services/workerFlow.js && node --check src/services/atithySync.js"
   },
   "dependencies": {
     "axios": "^1.7.9",

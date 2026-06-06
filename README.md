@@ -4,14 +4,17 @@ WhatsApp onboarding bot for Atithy workers.
 
 ## Flow
 
-1. Explain Atithy work and daily earning.
-2. Ask if the worker wants to continue.
-3. Collect name, gender, and current place in Kerala.
-4. Ask Aadhaar verification consent.
-5. Collect Aadhaar image/PDF.
-6. Send Aadhaar to reviewer `+91 94466 00809`.
-7. Reviewer approves, rejects, or asks for a clearer Aadhaar.
-8. On approval, mark onboarding complete and call the Atithy app sync endpoint if configured.
+1. Ask the worker to choose a language from the app-supported worker languages:
+   Hindi, Tamil, Bengali, Odia, Assamese, or English.
+2. Continue the worker-facing chat in the selected language.
+3. Explain Atithy work and daily earning.
+4. Ask if the worker wants to continue.
+5. Collect name, gender, and current place in Kerala.
+6. Ask Aadhaar verification consent.
+7. Collect Aadhaar image/PDF.
+8. Send Aadhaar to reviewer `+91 94466 00809`.
+9. Reviewer approves, rejects, or asks for a clearer Aadhaar.
+10. On approval, mark onboarding complete and call the Atithy app sync endpoint with the selected locale if configured.
 
 ## Local
 

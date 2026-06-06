@@ -1,5 +1,6 @@
 const axios = require('axios');
 const config = require('../config');
+const { localeForWorker } = require('./locales');
 
 async function syncApprovedWorker(worker) {
   if (!config.atithySyncUrl) {
@@ -14,6 +15,7 @@ async function syncApprovedWorker(worker) {
       name: worker.name,
       gender: worker.gender,
       currentPlace: worker.currentPlace,
+      locale: localeForWorker(worker),
       aadhaarVerified: true,
       aadhaar: worker.aadhaar || null,
       approvedAt: worker.approvedAt || new Date().toISOString()
