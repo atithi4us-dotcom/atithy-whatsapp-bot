@@ -146,24 +146,11 @@ function readableReplyLabel(replyId) {
   return district || '';
 }
 
-function languageNameFromLocale(locale) {
-  const labels = {
-    'as-IN': 'Assamese',
-    'bn-IN': 'Bengali',
-    'en-IN': 'English',
-    'hi-IN': 'Hindi',
-    'or-IN': 'Odia',
-    'ta-IN': 'Tamil'
-  };
-  return labels[locale] || locale || '';
-}
-
 function inferOldMessageText(event, context) {
   if (event.event !== 'message_received') return '';
   if (event.messageType === 'interactive') {
     if (context && context.next && context.next.event === 'start_sent') {
-      const language = languageNameFromLocale(context.next.locale);
-      return language ? `Selected language: ${language}` : 'Selected language';
+      return 'Worker selected a language';
     }
     return 'Worker selected an option';
   }
@@ -300,6 +287,14 @@ function renderHistory(worker) {
   `;
 }
 
+function scrollChatToLatest() {
+  const thread = detailsEl.querySelector('.chat-thread');
+  if (!thread) return;
+  requestAnimationFrame(() => {
+    thread.scrollTop = thread.scrollHeight;
+  });
+}
+
 async function fetchJson(url, options) {
   const response = await fetch(url, {
     headers: { 'Content-Type': 'application/json' },
@@ -405,6 +400,7 @@ function renderDetails(worker) {
       ${renderReviewPanel(worker, aadhaarFrontUrl, aadhaarBackUrl, legacyAadhaarUrl)}
     </div>
   `;
+  scrollChatToLatest();
 }
 
 async function loadWorkers() {
