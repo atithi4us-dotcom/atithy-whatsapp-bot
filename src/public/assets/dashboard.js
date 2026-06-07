@@ -103,8 +103,82 @@ function getSortedHistory(worker) {
     .sort((a, b) => Date.parse(a.at || '') - Date.parse(b.at || ''));
 }
 
-function eventText(event) {
+const replyLabels = {
+  aadhaar_consent_no: 'I do not agree',
+  aadhaar_consent_yes: 'I agree',
+  gender_female: 'Female',
+  gender_male: 'Male',
+  interest_no: 'No',
+  interest_yes: 'Yes',
+  language_as_in: 'Assamese',
+  language_bn_in: 'Bengali',
+  language_en_in: 'English',
+  language_hi_in: 'Hindi',
+  language_or_in: 'Odia',
+  language_ta_in: 'Tamil'
+};
+
+const districts = [
+  'Thiruvananthapuram',
+  'Kollam',
+  'Pathanamthitta',
+  'Alappuzha',
+  'Kottayam',
+  'Idukki',
+  'Ernakulam',
+  'Thrissur',
+  'Palakkad',
+  'Malappuram',
+  'Kozhikode',
+  'Wayanad',
+  'Kannur',
+  'Kasaragod'
+];
+
+function buildDistrictId(district) {
+  return `district_${district.toLowerCase().replace(/[^a-z0-9]+/g, '_')}`;
+}
+
+function readableReplyLabel(replyId) {
+  if (!replyId) return '';
+  if (replyLabels[replyId]) return replyLabels[replyId];
+  const district = districts.find((item) => buildDistrictId(item) === replyId);
+  return district || '';
+}
+
+function languageNameFromLocale(locale) {
+  const labels = {
+    'as-IN': 'Assamese',
+    'bn-IN': 'Bengali',
+    'en-IN': 'English',
+    'hi-IN': 'Hindi',
+    'or-IN': 'Odia',
+    'ta-IN': 'Tamil'
+  };
+  return labels[locale] || locale || '';
+}
+
+function inferOldMessageText(event, context) {
+  if (event.event !== 'message_received') return '';
+  if (event.messageType === 'interactive') {
+    if (context && context.next && context.next.event === 'start_sent') {
+      const language = languageNameFromLocale(context.next.locale);
+      return language ? `Selected language: ${language}` : 'Selected language';
+    }
+    return 'Worker selected an option';
+  }
+  if (event.messageType === 'image') return 'Image uploaded';
+  if (event.messageType === 'document') return 'Document uploaded';
+  return '';
+}
+
+function eventText(event, context = {}) {
   if (event.text) return event.text;
+  if (event.replyTitle) return event.replyTitle;
+  if (event.replyId) return readableReplyLabel(event.replyId) || event.replyId;
+
+  const inferredText = inferOldMessageText(event, context);
+  if (inferredText) return inferredText;
 
   const labels = {
     aadhaar_approved: 'Aadhaar approved',
@@ -138,12 +212,14 @@ function inboxPreview(worker) {
   const event = lastHistoryEvent(worker);
   if (!event) return humanize(worker.status || 'No messages yet');
   const prefix = event.type === 'outbound' ? 'Bot: ' : event.type === 'system' ? '' : '';
-  return `${prefix}${eventText(event)}`;
+  return `${prefix}${eventText(event, { worker })}`;
 }
 
 function renderChatExtras(worker, event) {
   const details = [];
-  if (event.messageType && !event.text) details.push(escapeHtml(`Message: ${event.messageType}`));
+  if (event.messageType && !event.text && event.messageType !== 'interactive') {
+    details.push(escapeHtml(`Message: ${event.messageType}`));
+  }
   if (event.locale) details.push(escapeHtml(`Language: ${event.locale}`));
   if (event.storagePath) {
     const side =
@@ -181,7 +257,12 @@ function renderHistory(worker) {
 
   let lastDateLabel = '';
   const rows = history
-    .map((event) => {
+    .map((event, index) => {
+      const context = {
+        worker,
+        previous: history[index - 1] || null,
+        next: history[index + 1] || null
+      };
       const dateLabel = formatDateLabel(event.at);
       const separator =
         dateLabel && dateLabel !== lastDateLabel
@@ -193,7 +274,7 @@ function renderHistory(worker) {
         return `
           ${separator}
           <div class="system-note">
-            <span>${escapeHtml(eventText(event))}</span>
+            <span>${escapeHtml(eventText(event, context))}</span>
             <time>${escapeHtml(formatClock(event.at))}</time>
           </div>
         `;
@@ -203,7 +284,7 @@ function renderHistory(worker) {
         ${separator}
         <div class="message-line ${event.type === 'outbound' ? 'sent' : 'received'}">
           <div class="message-bubble">
-            <div class="message-text">${escapeHtml(eventText(event))}</div>
+            <div class="message-text">${escapeHtml(eventText(event, context))}</div>
             ${renderChatExtras(worker, event)}
             <time>${escapeHtml(formatClock(event.at))}</time>
           </div>

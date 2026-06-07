@@ -53,16 +53,32 @@ function getText(message) {
   return (message.text && message.text.body ? message.text.body : '').trim();
 }
 
+function getInteractiveReply(message) {
+  const buttonReply = message.interactive && message.interactive.button_reply;
+  if (buttonReply && buttonReply.id) {
+    return {
+      id: buttonReply.id,
+      title: buttonReply.title || '',
+      type: 'button'
+    };
+  }
+
+  const listReply = message.interactive && message.interactive.list_reply;
+  if (listReply && listReply.id) {
+    return {
+      id: listReply.id,
+      title: listReply.title || '',
+      description: listReply.description || '',
+      type: 'list'
+    };
+  }
+
+  return null;
+}
+
 function getReplyId(message) {
-  return (
-    (message.interactive &&
-      message.interactive.button_reply &&
-      message.interactive.button_reply.id) ||
-    (message.interactive &&
-      message.interactive.list_reply &&
-      message.interactive.list_reply.id) ||
-    ''
-  );
+  const reply = getInteractiveReply(message);
+  return (reply && reply.id) || '';
 }
 
 function normalizePhone(phone) {
@@ -79,6 +95,41 @@ function buildDistrictId(district) {
 
 function districtFromReply(replyId) {
   return DISTRICTS.find((district) => buildDistrictId(district) === replyId) || null;
+}
+
+function readableReplyLabel(replyId) {
+  if (!replyId) return '';
+
+  const language = SUPPORTED_LANGUAGES.find((entry) => entry.id === replyId);
+  if (language) return language.title;
+
+  const district = districtFromReply(replyId);
+  if (district) return district;
+
+  const labels = {
+    [BUTTONS.INTEREST_YES]: 'Yes',
+    [BUTTONS.INTEREST_NO]: 'No',
+    [BUTTONS.GENDER_MALE]: 'Male',
+    [BUTTONS.GENDER_FEMALE]: 'Female',
+    [BUTTONS.CONSENT_YES]: 'I agree',
+    [BUTTONS.CONSENT_NO]: 'I do not agree'
+  };
+
+  return labels[replyId] || '';
+}
+
+function getInboundHistoryText(message) {
+  const text = getText(message);
+  if (text) return text;
+
+  const reply = getInteractiveReply(message);
+  if (reply) return reply.title || readableReplyLabel(reply.id) || reply.id;
+
+  const media = getMediaFromMessage(message);
+  if (media && media.caption) return media.caption;
+  if (media) return media.type === 'document' ? media.filename || 'Document uploaded' : 'Image uploaded';
+
+  return '';
 }
 
 function makeWorker(phone) {
@@ -416,12 +467,18 @@ async function processWorkerMessage(phone, message) {
     worker = await storage.saveWorker(phone, makeWorker(phone));
   }
 
+  const interactiveReply = getInteractiveReply(message);
   await storage.appendHistory(phone, {
     type: 'inbound',
     event: 'message_received',
     messageId: message.id || null,
     messageType: message.type || null,
-    text: getText(message) || null
+    text: getInboundHistoryText(message) || null,
+    typedText: getText(message) || null,
+    replyId: (interactiveReply && interactiveReply.id) || null,
+    replyTitle: (interactiveReply && interactiveReply.title) || null,
+    replyDescription: (interactiveReply && interactiveReply.description) || null,
+    replyType: (interactiveReply && interactiveReply.type) || null
   });
 
   const replyId = getReplyId(message);
