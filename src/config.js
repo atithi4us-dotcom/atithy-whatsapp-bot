@@ -29,5 +29,8 @@ module.exports = {
   sessionTtlMs: Number(process.env.SESSION_TTL_HOURS || 12) * 60 * 60 * 1000,
   atithySyncUrl: requiredEnv('ATITHY_APP_SYNC_URL'),
   atithySyncSecret: requiredEnv('ATITHY_APP_SYNC_SECRET'),
+  atithyAppDownloadUrl:
+    process.env.ATITHY_APP_DOWNLOAD_URL ||
+    'https://play.google.com/store/apps/details?id=com.athithy.global&pcampaignid=web_share',
   publicDir: path.join(__dirname, 'public')
 };

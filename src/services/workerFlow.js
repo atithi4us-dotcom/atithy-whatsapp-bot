@@ -1,3 +1,4 @@
+const path = require('path');
 const config = require('../config');
 const meta = require('./metaClient');
 const storage = require('./storage');
@@ -36,7 +37,18 @@ const BUTTONS = {
   GENDER_MALE: 'gender_male',
   GENDER_FEMALE: 'gender_female',
   CONSENT_YES: 'aadhaar_consent_yes',
-  CONSENT_NO: 'aadhaar_consent_no'
+  CONSENT_NO: 'aadhaar_consent_no',
+  APP_INSTALLED_YES: 'app_installed_yes',
+  APP_INSTALLED_NO: 'app_installed_no'
+};
+
+const JOB_ACCEPTANCE_VIDEO_PATHS = {
+  'hi-IN': path.join(__dirname, '../../videos/whatsapp/job-accept-hi.mp4'),
+  'ta-IN': path.join(__dirname, '../../videos/whatsapp/job-accept-ta.mp4'),
+  'bn-IN': path.join(__dirname, '../../videos/job-accept-bn.mp4'),
+  'or-IN': path.join(__dirname, '../../videos/job-accept-or.mp4'),
+  'as-IN': path.join(__dirname, '../../videos/job-accept-as.mp4'),
+  'en-IN': path.join(__dirname, '../../videos/job-accept-en.mp4')
 };
 
 function now() {
@@ -112,7 +124,9 @@ function readableReplyLabel(replyId) {
     [BUTTONS.GENDER_MALE]: 'Male',
     [BUTTONS.GENDER_FEMALE]: 'Female',
     [BUTTONS.CONSENT_YES]: 'I agree',
-    [BUTTONS.CONSENT_NO]: 'I do not agree'
+    [BUTTONS.CONSENT_NO]: 'I do not agree',
+    [BUTTONS.APP_INSTALLED_YES]: 'Installed',
+    [BUTTONS.APP_INSTALLED_NO]: 'Not yet'
   };
 
   return labels[replyId] || '';
@@ -143,6 +157,7 @@ function makeWorker(phone) {
     currentPlace: null,
     aadhaarConsent: null,
     aadhaar: null,
+    appInstall: null,
     review: {
       status: 'not_started',
       reviewedBy: null,
@@ -279,6 +294,65 @@ async function askAadhaarFront(phone) {
 async function askAadhaarBack(phone) {
   const worker = await storage.getWorker(phone);
   await meta.sendText(phone, textFor(localeForWorker(worker), 'aadhaarBackUpload'));
+}
+
+function jobAcceptanceVideoPathFor(locale) {
+  return JOB_ACCEPTANCE_VIDEO_PATHS[localeForWorker({ locale })] || JOB_ACCEPTANCE_VIDEO_PATHS['en-IN'];
+}
+
+async function updateAppInstall(phone, patch) {
+  const current = await storage.getWorker(phone);
+  return updateWorker(phone, {
+    appInstall: {
+      ...((current && current.appInstall) || {}),
+      ...patch
+    }
+  });
+}
+
+async function askAppInstall(phone) {
+  const worker = await storage.getWorker(phone);
+  const locale = localeForWorker(worker);
+  await meta.sendButtons(
+    phone,
+    [
+      textFor(locale, 'appInstallPrompt'),
+      '',
+      config.atithyAppDownloadUrl,
+      '',
+      textFor(locale, 'appInstallQuestion')
+    ].join('\n'),
+    [
+      { id: BUTTONS.APP_INSTALLED_YES, title: textFor(locale, 'installedYes') },
+      { id: BUTTONS.APP_INSTALLED_NO, title: textFor(locale, 'installedNo') }
+    ]
+  );
+  await updateAppInstall(phone, {
+    status: 'awaiting_confirmation',
+    linkSentAt: now(),
+    downloadUrl: config.atithyAppDownloadUrl
+  });
+}
+
+async function sendPostApprovalGuidance(phone, worker) {
+  const locale = localeForWorker(worker);
+  const videoPath = jobAcceptanceVideoPathFor(locale);
+  const upload = await meta.sendVideoFile(phone, videoPath, textFor(locale, 'appVideoCaption'));
+  await updateAppInstall(phone, {
+    status: 'video_sent',
+    videoLocale: locale,
+    videoPath: path.basename(videoPath),
+    videoMediaId: upload && upload.id ? upload.id : null,
+    videoSentAt: now()
+  });
+  await storage.appendHistory(phone, {
+    type: 'outbound',
+    event: 'job_acceptance_video_sent',
+    locale,
+    videoPath: path.basename(videoPath)
+  });
+  await askAppInstall(phone);
+  await storage.appendHistory(phone, { type: 'outbound', event: 'app_install_prompt_sent' });
 }
 
 function getMediaFromMessage(message) {
@@ -494,6 +568,7 @@ async function processWorkerMessage(phone, message) {
       currentPlace: null,
       aadhaarConsent: null,
       aadhaar: null,
+      appInstall: null,
       aadhaarRequest: null,
       review: {
         status: 'not_started',
@@ -633,7 +708,46 @@ async function processWorkerMessage(phone, message) {
       return;
 
     case STATUS.APPROVED:
-      await meta.sendText(phone, textFor(localeForWorker(worker), 'approvedAlready'));
+      if (replyId === BUTTONS.APP_INSTALLED_YES || isAffirmativeText(text)) {
+        await updateAppInstall(phone, {
+          status: 'installed',
+          confirmedAt: now(),
+          confirmedBy: 'worker'
+        });
+        await storage.appendHistory(phone, { type: 'inbound', event: 'app_install_confirmed' });
+        await meta.sendText(phone, textFor(localeForWorker(worker), 'appReady'));
+        return;
+      }
+      if (replyId === BUTTONS.APP_INSTALLED_NO || isNegativeText(text)) {
+        await meta.sendText(phone, textFor(localeForWorker(worker), 'appInstallReminder'));
+        await askAppInstall(phone);
+        await storage.appendHistory(phone, { type: 'outbound', event: 'app_install_prompt_resent' });
+        return;
+      }
+      if (worker.appInstall && worker.appInstall.status === 'installed') {
+        await meta.sendText(phone, textFor(localeForWorker(worker), 'approvedAlready'));
+        return;
+      }
+      if (!worker.appInstall || (!worker.appInstall.videoSentAt && worker.appInstall.status !== 'installed')) {
+        try {
+          await sendPostApprovalGuidance(phone, worker);
+          return;
+        } catch (error) {
+          console.error('[POST_APPROVAL_GUIDANCE_RETRY_ERROR]', JSON.stringify({ phone, error: error.message }));
+          await updateAppInstall(phone, {
+            status: 'failed',
+            error: error.message,
+            failedAt: now()
+          });
+          await storage.appendHistory(phone, {
+            type: 'system',
+            event: 'post_approval_guidance_retry_failed',
+            error: error.message
+          });
+        }
+      }
+      await meta.sendText(phone, textFor(localeForWorker(worker), 'appInstallChooseOption'));
+      await askAppInstall(phone);
       return;
 
     case STATUS.REJECTED:
@@ -690,6 +804,21 @@ async function approveWorker(phone, reviewedBy = 'reviewer') {
     syncResult
   });
   await meta.sendText(phone, textFor(localeForWorker(next), 'complete'));
+  try {
+    await sendPostApprovalGuidance(phone, next);
+  } catch (error) {
+    console.error('[POST_APPROVAL_GUIDANCE_ERROR]', JSON.stringify({ phone, error: error.message }));
+    await updateAppInstall(phone, {
+      status: 'failed',
+      error: error.message,
+      failedAt: now()
+    });
+    await storage.appendHistory(phone, {
+      type: 'system',
+      event: 'post_approval_guidance_failed',
+      error: error.message
+    });
+  }
   await meta.sendText(config.reviewerPhone, `Approved and activated Atithy worker +${phone}.`);
   return { worker: next, syncResult };
 }

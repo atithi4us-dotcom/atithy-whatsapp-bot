@@ -42,3 +42,5 @@ services:
         sync: false
       - key: ATITHY_APP_SYNC_SECRET
         sync: false
+      - key: ATITHY_APP_DOWNLOAD_URL
+        value: https://play.google.com/store/apps/details?id=com.athithy.global&pcampaignid=web_share

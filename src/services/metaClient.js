@@ -1,4 +1,6 @@
 const axios = require('axios');
+const fs = require('fs/promises');
+const path = require('path');
 const config = require('../config');
 
 function summarizePayload(payload) {
@@ -6,7 +8,12 @@ function summarizePayload(payload) {
     to: payload.to,
     type: payload.type,
     text: payload.text ? payload.text.body : undefined,
-    interactiveType: payload.interactive ? payload.interactive.type : undefined
+    interactiveType: payload.interactive ? payload.interactive.type : undefined,
+    mediaId:
+      (payload.image && payload.image.id) ||
+      (payload.video && payload.video.id) ||
+      (payload.document && payload.document.id) ||
+      undefined
   };
 }
 
@@ -97,6 +104,53 @@ async function sendDocumentById(to, mediaId, filename, caption) {
   });
 }
 
+async function uploadMediaFromFile(filePath, mimeType = 'video/mp4') {
+  if (config.dryRun || !config.whatsappToken || !config.whatsappPhoneNumberId) {
+    console.log('[DRY_RUN] WhatsApp media upload', JSON.stringify({ filePath, mimeType }));
+    return { id: `dry-run-${path.basename(filePath)}`, dryRun: true };
+  }
+
+  const buffer = await fs.readFile(filePath);
+  const form = new FormData();
+  form.append('messaging_product', 'whatsapp');
+  form.append('type', mimeType);
+  form.append('file', new Blob([buffer], { type: mimeType }), path.basename(filePath));
+
+  const url = `https://graph.facebook.com/${config.graphApiVersion}/${config.whatsappPhoneNumberId}/media`;
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${config.whatsappToken}`
+    },
+    body: form
+  });
+
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`WhatsApp media upload failed: ${response.status} ${body}`);
+  }
+
+  return response.json();
+}
+
+async function sendVideoById(to, mediaId, caption) {
+  return sendRequest({
+    messaging_product: 'whatsapp',
+    to,
+    type: 'video',
+    video: {
+      id: mediaId,
+      caption
+    }
+  });
+}
+
+async function sendVideoFile(to, filePath, caption) {
+  const upload = await uploadMediaFromFile(filePath, 'video/mp4');
+  await sendVideoById(to, upload.id, caption);
+  return upload;
+}
+
 async function downloadMedia(mediaId) {
   const metaUrl = `https://graph.facebook.com/${config.graphApiVersion}/${mediaId}`;
   const meta = await axios.get(metaUrl, {
@@ -125,5 +179,8 @@ module.exports = {
   sendList,
   sendImageById,
   sendDocumentById,
+  uploadMediaFromFile,
+  sendVideoById,
+  sendVideoFile,
   downloadMedia
 };
