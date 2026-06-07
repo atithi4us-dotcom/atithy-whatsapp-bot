@@ -33,7 +33,7 @@ const SUPPORTED_LANGUAGES = [
 
 const LANGUAGE_ALIASES = {
   [ENGLISH]: ['en', 'en-in', 'english'],
-  [HINDI]: ['hi', 'hi-in', 'hindi', 'हिंदी', 'हिन्दी'],
+  [HINDI]: ['hi-in', 'hindi', 'हिंदी', 'हिन्दी'],
   [TAMIL]: ['ta', 'ta-in', 'tamil', 'தமிழ்'],
   [BENGALI]: ['bn', 'bn-in', 'bengali', 'bangla', 'বাংলা'],
   [ODIA]: ['or', 'or-in', 'od', 'odia', 'oriya', 'ଓଡ଼ିଆ', 'ଓଡିଆ'],
