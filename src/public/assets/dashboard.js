@@ -340,6 +340,8 @@ function scrollChatToLatest() {
 async function fetchJson(url, options) {
   const response = await fetch(url, {
     headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin',
+    cache: 'no-store',
     ...options
   });
   const data = await response.json().catch(() => ({}));
@@ -467,9 +469,13 @@ async function loadWorkers() {
       if (listWorker) {
         renderDetails(listWorker);
       }
-      const selected = await fetchJson(`/admin/api/workers/${selectedPhone}`);
-      if (selected && selected.worker) {
-        renderDetails(selected.worker);
+      try {
+        const selected = await fetchJson(`/admin/api/workers/${selectedPhone}`);
+        if (selected && selected.worker) {
+          renderDetails(selected.worker);
+        }
+      } catch (_error) {
+        // Keep showing list payload if detail endpoint is temporarily unavailable.
       }
     }
   } finally {
