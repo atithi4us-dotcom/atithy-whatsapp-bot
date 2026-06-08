@@ -1,7 +1,13 @@
 const express = require('express');
 const path = require('path');
 const config = require('./config');
-const { initializeStorage, listWorkers, getWorker, getBucket } = require('./services/storage');
+const {
+  initializeStorage,
+  listWorkers,
+  getWorker,
+  getBucket,
+  getStorageDiagnostics
+} = require('./services/storage');
 const { processIncomingMessage, approveWorker, rejectWorker } = require('./services/workerFlow');
 const {
   createSession,
@@ -16,6 +22,20 @@ const {
 const app = express();
 let startupError = null;
 let lastWebhookError = null;
+let lastInboundMessage = null;
+
+function getWebhookPreviewText(message) {
+  if (message.text && message.text.body) return message.text.body;
+  if (message.image && message.image.caption) return message.image.caption;
+  if (message.document && message.document.caption) return message.document.caption;
+  if (message.interactive && message.interactive.button_reply && message.interactive.button_reply.title) {
+    return message.interactive.button_reply.title;
+  }
+  if (message.interactive && message.interactive.list_reply && message.interactive.list_reply.title) {
+    return message.interactive.list_reply.title;
+  }
+  return '';
+}
 
 app.use(express.json({ limit: '2mb' }));
 app.use(express.urlencoded({ extended: false }));
@@ -42,7 +62,9 @@ app.get('/health', (_req, res) => {
     ),
     reviewerPhone: config.reviewerPhone,
     startupError,
-    lastWebhookError
+    lastWebhookError,
+    lastInboundMessage,
+    lastHistoryWrite: getStorageDiagnostics().lastHistoryWrite
   });
 });
 
@@ -72,6 +94,15 @@ app.post('/webhook', async (req, res) => {
         for (const message of messages) {
           if (!message.from) continue;
           processedMessages += 1;
+          const preview = getWebhookPreviewText(message);
+          lastInboundMessage = {
+            at: new Date().toISOString(),
+            from: String(message.from || '').replace(/(\d{6})(\d{4})$/, '******$2'),
+            type: message.type || null,
+            hasText: Boolean(preview),
+            preview: preview ? preview.slice(0, 160) : null,
+            messageId: message.id || null
+          };
           console.log(
             '[WEBHOOK] Incoming message',
             JSON.stringify(

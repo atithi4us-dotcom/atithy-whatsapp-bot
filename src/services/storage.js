@@ -3,6 +3,7 @@ const config = require('../config');
 
 let app;
 let db;
+let lastHistoryWrite = null;
 
 function getFirebaseApp() {
   if (app) return app;
@@ -101,6 +102,7 @@ async function appendHistory(phone, event) {
     at: new Date().toISOString(),
     ...event
   };
+  let writeSummary = null;
 
   await getFirestore().runTransaction(async (transaction) => {
     const snapshot = await transaction.get(ref);
@@ -114,6 +116,16 @@ async function appendHistory(phone, event) {
 
     const nextHistory = [...existingHistory, payload].slice(-500);
 
+    writeSummary = {
+      at: payload.at,
+      phone,
+      event: payload.event || null,
+      type: payload.type || null,
+      beforeCount: existingHistory.length,
+      afterCount: nextHistory.length,
+      messageId: payload.messageId || null
+    };
+
     transaction.set(
       ref,
       {
@@ -125,6 +137,8 @@ async function appendHistory(phone, event) {
       { merge: true }
     );
   });
+
+  lastHistoryWrite = writeSummary;
 }
 
 async function claimInboundMessage(phone, messageId, initialWorker) {
@@ -154,6 +168,12 @@ async function claimInboundMessage(phone, messageId, initialWorker) {
     transaction.set(ref, next, { merge: true });
     return { claimed: true, worker: next };
   });
+}
+
+function getStorageDiagnostics() {
+  return {
+    lastHistoryWrite
+  };
 }
 
 async function uploadAadhaar(phone, media) {
@@ -187,6 +207,7 @@ module.exports = {
   initializeStorage,
   getFirestore,
   getBucket,
+  getStorageDiagnostics,
   getWorker,
   saveWorker,
   listWorkers,
