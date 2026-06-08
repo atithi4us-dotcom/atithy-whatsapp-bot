@@ -47,6 +47,21 @@ function getBucket() {
   return admin.storage(getFirebaseApp()).bucket(config.firebaseStorageBucket || undefined);
 }
 
+function normalizeHistoryValue(value) {
+  if (!value) return [];
+  if (Array.isArray(value)) return value;
+  if (typeof value === 'object') return Object.values(value);
+  return [];
+}
+
+function normalizeWorker(rawWorker) {
+  if (!rawWorker) return rawWorker;
+  return {
+    ...rawWorker,
+    history: normalizeHistoryValue(rawWorker.history)
+  };
+}
+
 async function initializeStorage() {
   await getFirestore().collection('_health').doc('atithy-whatsapp-bot').set(
     {
@@ -58,7 +73,7 @@ async function initializeStorage() {
 
 async function getWorker(phone) {
   const doc = await getFirestore().collection('whatsappWorkerOnboarding').doc(phone).get();
-  return doc.exists ? { phone: doc.id, ...doc.data() } : null;
+  return doc.exists ? { phone: doc.id, ...normalizeWorker(doc.data()) } : null;
 }
 
 async function saveWorker(phone, worker) {
@@ -77,7 +92,7 @@ async function listWorkers(limit = 100) {
     .orderBy('updatedAt', 'desc')
     .limit(limit)
     .get();
-  return snapshot.docs.map((doc) => ({ phone: doc.id, ...doc.data() }));
+  return snapshot.docs.map((doc) => ({ phone: doc.id, ...normalizeWorker(doc.data()) }));
 }
 
 async function appendHistory(phone, event) {
