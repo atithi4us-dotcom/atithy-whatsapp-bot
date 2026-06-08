@@ -43,6 +43,8 @@ const BUTTONS = {
   APP_INSTALLED_NO: 'app_installed_no'
 };
 
+const recentReviewerMessageIds = new Set();
+
 const JOB_ACCEPTANCE_VIDEO_PATHS = {
   'hi-IN': path.join(__dirname, '../../videos/whatsapp/job-accept-hi.mp4'),
   'ta-IN': path.join(__dirname, '../../videos/whatsapp/job-accept-ta.mp4'),
@@ -60,6 +62,17 @@ function isRecent(isoDate, windowMs = 30000) {
   if (!isoDate) return false;
   const time = Date.parse(isoDate);
   return Number.isFinite(time) && Date.now() - time < windowMs;
+}
+
+function rememberReviewerMessage(messageId) {
+  if (!messageId) return false;
+  if (recentReviewerMessageIds.has(messageId)) return true;
+  recentReviewerMessageIds.add(messageId);
+  if (recentReviewerMessageIds.size > 100) {
+    const [oldest] = recentReviewerMessageIds;
+    recentReviewerMessageIds.delete(oldest);
+  }
+  return false;
 }
 
 function getText(message) {
@@ -948,31 +961,31 @@ async function sendPendingReviewSummary(phone) {
     return;
   }
 
-  const lines = [
-    `Pending Aadhaar reviews: ${pendingWorkers.length}`,
-    '',
-    `Admin: ${config.publicBaseUrl}/admin`,
-    ''
-  ];
+  const reviewCards = pendingWorkers.slice(0, 5);
+  await meta.sendText(
+    phone,
+    [
+      `Pending Aadhaar reviews: ${pendingWorkers.length}`,
+      `Sending ${reviewCards.length} review card${reviewCards.length === 1 ? '' : 's'} now.`,
+      `Admin: ${config.publicBaseUrl}/admin`
+    ].join('\n')
+  );
 
-  for (const worker of pendingWorkers.slice(0, 10)) {
-    lines.push(`${worker.name || '-'} +${worker.phone}${worker.currentPlace ? `, ${worker.currentPlace}` : ''}`);
-    lines.push(`Approve: approve_${worker.phone}`);
-    lines.push(`Reject: reject_${worker.phone}`);
-    lines.push(`Clear front: clear_front_${worker.phone}`);
-    lines.push(`Clear back: clear_back_${worker.phone}`);
-    lines.push(`Clear both: clear_both_${worker.phone}`);
-    lines.push('');
+  for (const worker of reviewCards) {
+    await notifyReviewer(worker);
   }
 
-  if (pendingWorkers.length > 10) {
-    lines.push(`Showing 10 of ${pendingWorkers.length}. Open admin for the full list.`);
+  if (pendingWorkers.length > reviewCards.length) {
+    await meta.sendText(
+      phone,
+      `Showing ${reviewCards.length} of ${pendingWorkers.length}. Open admin for the full pending list.`
+    );
   }
-
-  await meta.sendText(phone, lines.join('\n').trim());
 }
 
 async function processReviewerMessage(phone, message) {
+  if (rememberReviewerMessage(message.id || '')) return;
+
   const replyId = getReplyId(message);
   const text = getText(message);
   const command = replyId || text;
