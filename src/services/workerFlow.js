@@ -931,6 +931,47 @@ async function rejectWorker(phone, reviewedBy = 'reviewer', action = 'reject') {
   return next;
 }
 
+function reviewableWorker(worker) {
+  return Boolean(
+    worker &&
+      worker.phone &&
+      worker.review &&
+      worker.review.status === 'pending' &&
+      hasReviewableAadhaar(worker)
+  );
+}
+
+async function sendPendingReviewSummary(phone) {
+  const pendingWorkers = (await storage.listWorkers(50)).filter(reviewableWorker);
+  if (!pendingWorkers.length) {
+    await meta.sendText(phone, 'No Aadhaar reviews are pending right now.');
+    return;
+  }
+
+  const lines = [
+    `Pending Aadhaar reviews: ${pendingWorkers.length}`,
+    '',
+    `Admin: ${config.publicBaseUrl}/admin`,
+    ''
+  ];
+
+  for (const worker of pendingWorkers.slice(0, 10)) {
+    lines.push(`${worker.name || '-'} +${worker.phone}${worker.currentPlace ? `, ${worker.currentPlace}` : ''}`);
+    lines.push(`Approve: approve_${worker.phone}`);
+    lines.push(`Reject: reject_${worker.phone}`);
+    lines.push(`Clear front: clear_front_${worker.phone}`);
+    lines.push(`Clear back: clear_back_${worker.phone}`);
+    lines.push(`Clear both: clear_both_${worker.phone}`);
+    lines.push('');
+  }
+
+  if (pendingWorkers.length > 10) {
+    lines.push(`Showing 10 of ${pendingWorkers.length}. Open admin for the full list.`);
+  }
+
+  await meta.sendText(phone, lines.join('\n').trim());
+}
+
 async function processReviewerMessage(phone, message) {
   const replyId = getReplyId(message);
   const text = getText(message);
@@ -938,7 +979,7 @@ async function processReviewerMessage(phone, message) {
 
   const match = /^(clear_front|clear_back|clear_both|approve|reject|clear)[_\s:+-]*(\d{10,15})$/i.exec(command);
   if (!match) {
-    await meta.sendText(phone, 'Reviewer command not recognized. Use Approve, Reject, or Need clear copy buttons.');
+    await sendPendingReviewSummary(phone);
     return;
   }
 

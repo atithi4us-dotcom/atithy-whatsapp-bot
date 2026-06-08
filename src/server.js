@@ -23,6 +23,8 @@ const app = express();
 let startupError = null;
 let lastWebhookError = null;
 let lastInboundMessage = null;
+let lastMessageStatus = null;
+let lastReviewerDeliveryFailure = null;
 
 function getWebhookPreviewText(message) {
   if (message.text && message.text.body) return message.text.body;
@@ -75,6 +77,8 @@ app.get('/health', (_req, res) => {
     startupError,
     lastWebhookError,
     lastInboundMessage,
+    lastMessageStatus,
+    lastReviewerDeliveryFailure,
     lastHistoryWrite: getStorageDiagnostics().lastHistoryWrite
   });
 });
@@ -160,32 +164,35 @@ app.post('/webhook', async (req, res) => {
 
         for (const status of statuses) {
           processedStatuses += 1;
+          const normalizedStatus = {
+            at: new Date().toISOString(),
+            id: status.id || null,
+            status: status.status || null,
+            recipientId: status.recipient_id || null,
+            errors: Array.isArray(status.errors)
+              ? status.errors.map((error) => ({
+                  code: error.code || null,
+                  title: error.title || null,
+                  message: error.message || null
+                }))
+              : [],
+            phoneNumberId:
+              value.metadata && value.metadata.phone_number_id ? value.metadata.phone_number_id : null,
+            displayPhoneNumber:
+              value.metadata && value.metadata.display_phone_number
+                ? value.metadata.display_phone_number
+                : null
+          };
+          lastMessageStatus = normalizedStatus;
+          if (
+            normalizedStatus.status === 'failed' &&
+            normalizedStatus.recipientId === config.reviewerPhone
+          ) {
+            lastReviewerDeliveryFailure = normalizedStatus;
+          }
           console.log(
             '[WEBHOOK] Message status',
-            JSON.stringify(
-              {
-                id: status.id || null,
-                status: status.status || null,
-                recipientId: status.recipient_id || null,
-                errors: Array.isArray(status.errors)
-                  ? status.errors.map((error) => ({
-                      code: error.code || null,
-                      title: error.title || null,
-                      message: error.message || null
-                    }))
-                  : [],
-                phoneNumberId:
-                  value.metadata && value.metadata.phone_number_id
-                    ? value.metadata.phone_number_id
-                    : null,
-                displayPhoneNumber:
-                  value.metadata && value.metadata.display_phone_number
-                    ? value.metadata.display_phone_number
-                    : null
-              },
-              null,
-              2
-            )
+            JSON.stringify(normalizedStatus, null, 2)
           );
         }
       }
