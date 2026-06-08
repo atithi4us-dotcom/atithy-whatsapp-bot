@@ -174,8 +174,9 @@ function makeWorker(phone) {
 }
 
 async function askLanguage(phone) {
+  const promptText = 'Please choose your language.\nकृपया अपनी भाषा चुनें।';
   try {
-    await meta.sendList(phone, 'Please choose your language.\nकृपया अपनी भाषा चुनें।', 'Language', [
+    await meta.sendList(phone, promptText, 'Language', [
       {
         title: 'Available languages',
         rows: SUPPORTED_LANGUAGES.map((language) => ({
@@ -187,30 +188,32 @@ async function askLanguage(phone) {
     ]);
   } catch (error) {
     console.error('[LANGUAGE_LIST_ERROR]', error.response ? error.response.data : error.message);
-    await meta.sendText(
-      phone,
-      [
-        'Please choose your language by typing the name or number:',
-        '',
-        ...SUPPORTED_LANGUAGES.map(
-          (language, index) => `${index + 1}. ${language.title} (${language.subtitle})`
-        )
-      ].join('\n')
-    );
+    const fallbackText = [
+      'Please choose your language by typing the name or number:',
+      '',
+      ...SUPPORTED_LANGUAGES.map(
+        (language, index) => `${index + 1}. ${language.title} (${language.subtitle})`
+      )
+    ].join('\n');
+    await meta.sendText(phone, fallbackText);
+    await storage.appendHistory(phone, { type: 'outbound', event: 'language_prompt_sent', text: fallbackText });
+    return;
   }
-  await storage.appendHistory(phone, { type: 'outbound', event: 'language_prompt_sent' });
+  await storage.appendHistory(phone, { type: 'outbound', event: 'language_prompt_sent', text: promptText });
 }
 
 async function askInterest(phone, locale) {
-  await meta.sendButtons(phone, textFor(locale, 'interested'), [
+  const text = textFor(locale, 'interested');
+  await meta.sendButtons(phone, text, [
     { id: BUTTONS.INTEREST_YES, title: textFor(locale, 'yes') },
     { id: BUTTONS.INTEREST_NO, title: textFor(locale, 'no') }
   ]);
-  await storage.appendHistory(phone, { type: 'outbound', event: 'interest_prompt' });
+  await storage.appendHistory(phone, { type: 'outbound', event: 'interest_prompt', text });
 }
 
 async function sendStart(phone, locale) {
-  await meta.sendText(phone, textFor(locale, 'intro'));
+  const text = textFor(locale, 'intro');
+  await sendWorkerText(phone, text, 'intro_sent', { locale });
   await askInterest(phone, locale);
 }
 
@@ -236,28 +239,42 @@ async function updateWorker(phone, patch) {
   });
 }
 
+async function sendWorkerText(phone, text, event, extra = {}) {
+  await meta.sendText(phone, text);
+  await storage.appendHistory(phone, {
+    type: 'outbound',
+    event,
+    text,
+    ...extra
+  });
+}
+
 async function askName(phone) {
   const worker = await storage.getWorker(phone);
-  await meta.sendText(phone, textFor(localeForWorker(worker), 'name'));
-  await storage.appendHistory(phone, { type: 'outbound', event: 'name_prompt' });
+  const text = textFor(localeForWorker(worker), 'name');
+  await sendWorkerText(phone, text, 'name_prompt');
 }
 
 async function askGender(phone) {
   const locale = localeForWorker(await storage.getWorker(phone));
-  await meta.sendButtons(phone, textFor(locale, 'gender'), [
+  const text = textFor(locale, 'gender');
+  await meta.sendButtons(phone, text, [
     { id: BUTTONS.GENDER_MALE, title: textFor(locale, 'male') },
     { id: BUTTONS.GENDER_FEMALE, title: textFor(locale, 'female') }
   ]);
-  await storage.appendHistory(phone, { type: 'outbound', event: 'gender_prompt' });
+  await storage.appendHistory(phone, { type: 'outbound', event: 'gender_prompt', text });
 }
 
 async function askPlace(phone) {
   const locale = localeForWorker(await storage.getWorker(phone));
-  await meta.sendText(phone, textFor(locale, 'districtIntro'));
+  const introText = textFor(locale, 'districtIntro');
+  await meta.sendText(phone, introText);
 
   const firstHalf = DISTRICTS.slice(0, 7);
   const secondHalf = DISTRICTS.slice(7);
-  await meta.sendList(phone, textFor(locale, 'districtList1'), textFor(locale, 'districtButton'), [
+  const firstListText = textFor(locale, 'districtList1');
+  const secondListText = textFor(locale, 'districtList2');
+  await meta.sendList(phone, firstListText, textFor(locale, 'districtButton'), [
     {
       title: textFor(locale, 'districtSection1'),
       rows: firstHalf.map((district) => ({
@@ -266,7 +283,7 @@ async function askPlace(phone) {
       }))
     }
   ]);
-  await meta.sendList(phone, textFor(locale, 'districtList2'), textFor(locale, 'districtButton'), [
+  await meta.sendList(phone, secondListText, textFor(locale, 'districtButton'), [
     {
       title: textFor(locale, 'districtSection2'),
       rows: secondHalf.map((district) => ({
@@ -275,34 +292,39 @@ async function askPlace(phone) {
       }))
     }
   ]);
-  await storage.appendHistory(phone, { type: 'outbound', event: 'place_prompt' });
+  await storage.appendHistory(phone, {
+    type: 'outbound',
+    event: 'place_prompt',
+    text: [introText, firstListText, secondListText].join('\n')
+  });
 }
 
 async function askAadhaarConsent(phone) {
   const locale = localeForWorker(await storage.getWorker(phone));
-  await meta.sendButtons(phone, textFor(locale, 'aadhaarConsent'), [
+  const text = textFor(locale, 'aadhaarConsent');
+  await meta.sendButtons(phone, text, [
     { id: BUTTONS.CONSENT_YES, title: textFor(locale, 'consentYes') },
     { id: BUTTONS.CONSENT_NO, title: textFor(locale, 'consentNo') }
   ]);
-  await storage.appendHistory(phone, { type: 'outbound', event: 'aadhaar_consent_prompt' });
+  await storage.appendHistory(phone, { type: 'outbound', event: 'aadhaar_consent_prompt', text });
 }
 
 async function askAadhaar(phone) {
   const worker = await storage.getWorker(phone);
-  await meta.sendText(phone, textFor(localeForWorker(worker), 'aadhaarUpload'));
-  await storage.appendHistory(phone, { type: 'outbound', event: 'aadhaar_upload_prompt' });
+  const text = textFor(localeForWorker(worker), 'aadhaarUpload');
+  await sendWorkerText(phone, text, 'aadhaar_upload_prompt');
 }
 
 async function askAadhaarFront(phone) {
   const worker = await storage.getWorker(phone);
-  await meta.sendText(phone, textFor(localeForWorker(worker), 'aadhaarFrontUpload'));
-  await storage.appendHistory(phone, { type: 'outbound', event: 'aadhaar_front_prompt' });
+  const text = textFor(localeForWorker(worker), 'aadhaarFrontUpload');
+  await sendWorkerText(phone, text, 'aadhaar_front_prompt');
 }
 
 async function askAadhaarBack(phone) {
   const worker = await storage.getWorker(phone);
-  await meta.sendText(phone, textFor(localeForWorker(worker), 'aadhaarBackUpload'));
-  await storage.appendHistory(phone, { type: 'outbound', event: 'aadhaar_back_prompt' });
+  const text = textFor(localeForWorker(worker), 'aadhaarBackUpload');
+  await sendWorkerText(phone, text, 'aadhaar_back_prompt');
 }
 
 function jobAcceptanceVideoPathFor(locale) {
@@ -322,21 +344,18 @@ async function updateAppInstall(phone, patch) {
 async function askAppInstall(phone) {
   const worker = await storage.getWorker(phone);
   const locale = localeForWorker(worker);
-  await meta.sendButtons(
-    phone,
-    [
-      textFor(locale, 'appInstallPrompt'),
-      '',
-      config.atithyAppDownloadUrl,
-      '',
-      textFor(locale, 'appInstallQuestion')
-    ].join('\n'),
-    [
-      { id: BUTTONS.APP_INSTALLED_YES, title: textFor(locale, 'installedYes') },
-      { id: BUTTONS.APP_INSTALLED_NO, title: textFor(locale, 'installedNo') }
-    ]
-  );
-  await storage.appendHistory(phone, { type: 'outbound', event: 'app_install_prompt_sent' });
+  const text = [
+    textFor(locale, 'appInstallPrompt'),
+    '',
+    config.atithyAppDownloadUrl,
+    '',
+    textFor(locale, 'appInstallQuestion')
+  ].join('\n');
+  await meta.sendButtons(phone, text, [
+    { id: BUTTONS.APP_INSTALLED_YES, title: textFor(locale, 'installedYes') },
+    { id: BUTTONS.APP_INSTALLED_NO, title: textFor(locale, 'installedNo') }
+  ]);
+  await storage.appendHistory(phone, { type: 'outbound', event: 'app_install_prompt_sent', text });
   await updateAppInstall(phone, {
     status: 'awaiting_confirmation',
     linkSentAt: now(),
@@ -465,17 +484,20 @@ async function markAadhaarPending(phone, worker, aadhaar) {
   });
 
   await notifyReviewer(next);
-  await meta.sendText(phone, textFor(localeForWorker(next), 'aadhaarBothReceived'));
+  await sendWorkerText(
+    phone,
+    textFor(localeForWorker(next), 'aadhaarBothReceived'),
+    'aadhaar_both_received_sent'
+  );
   return next;
 }
 
 async function handleAadhaarSideUpload(phone, message, worker, side) {
   const incomingMedia = getMediaFromMessage(message);
   if (!incomingMedia) {
-    await meta.sendText(
-      phone,
-      textFor(localeForWorker(worker), side === 'front' ? 'aadhaarFrontUpload' : 'aadhaarBackUpload')
-    );
+    const messageKey = side === 'front' ? 'aadhaarFrontUpload' : 'aadhaarBackUpload';
+    const event = side === 'front' ? 'aadhaar_front_prompt' : 'aadhaar_back_prompt';
+    await sendWorkerText(phone, textFor(localeForWorker(worker), messageKey), event);
     return;
   }
 
@@ -537,7 +559,11 @@ async function handleAadhaarSideUpload(phone, message, worker, side) {
     storagePath: stored.storagePath
   });
   await notifyReviewer(next);
-  await meta.sendText(phone, textFor(localeForWorker(next), 'aadhaarBothReceived'));
+  await sendWorkerText(
+    phone,
+    textFor(localeForWorker(next), 'aadhaarBothReceived'),
+    'aadhaar_both_received_sent'
+  );
   return next;
 }
 
@@ -608,18 +634,17 @@ async function processWorkerMessage(phone, message) {
         startSentAt: now()
       });
       await sendStart(phone, locale);
-      await storage.appendHistory(phone, { type: 'outbound', event: 'start_sent', locale });
       return;
     }
 
     case STATUS.AWAITING_INTEREST:
       if (replyId === BUTTONS.INTEREST_NO || isNegativeText(text)) {
         await updateWorker(phone, { status: STATUS.NOT_INTERESTED });
-        await meta.sendText(phone, textFor(localeForWorker(worker), 'notNow'));
+        await sendWorkerText(phone, textFor(localeForWorker(worker), 'notNow'), 'not_now_sent');
         return;
       }
       if (replyId !== BUTTONS.INTEREST_YES && !isAffirmativeText(text)) {
-        await meta.sendText(phone, textFor(localeForWorker(worker), 'chooseOption'));
+        await sendWorkerText(phone, textFor(localeForWorker(worker), 'chooseOption'), 'choose_option_sent');
         await askInterest(phone, localeForWorker(worker));
         return;
       }
@@ -682,7 +707,11 @@ async function processWorkerMessage(phone, message) {
             respondedAt: now()
           }
         });
-        await meta.sendText(phone, textFor(localeForWorker(worker), 'aadhaarRequired'));
+        await sendWorkerText(
+          phone,
+          textFor(localeForWorker(worker), 'aadhaarRequired'),
+          'aadhaar_required_sent'
+        );
         return;
       }
       if (replyId !== BUTTONS.CONSENT_YES && !isAffirmativeText(text)) {
@@ -718,7 +747,7 @@ async function processWorkerMessage(phone, message) {
       return;
 
     case STATUS.VERIFICATION_PENDING:
-      await meta.sendText(phone, textFor(localeForWorker(worker), 'aadhaarPending'));
+      await sendWorkerText(phone, textFor(localeForWorker(worker), 'aadhaarPending'), 'aadhaar_pending_sent');
       return;
 
     case STATUS.APPROVED:
@@ -729,17 +758,25 @@ async function processWorkerMessage(phone, message) {
           confirmedBy: 'worker'
         });
         await storage.appendHistory(phone, { type: 'inbound', event: 'app_install_confirmed' });
-        await meta.sendText(phone, textFor(localeForWorker(worker), 'appReady'));
+        await sendWorkerText(phone, textFor(localeForWorker(worker), 'appReady'), 'app_ready_sent');
         return;
       }
       if (replyId === BUTTONS.APP_INSTALLED_NO || isNegativeText(text)) {
-        await meta.sendText(phone, textFor(localeForWorker(worker), 'appInstallReminder'));
+        await sendWorkerText(
+          phone,
+          textFor(localeForWorker(worker), 'appInstallReminder'),
+          'app_install_reminder_sent'
+        );
         await askAppInstall(phone);
         await storage.appendHistory(phone, { type: 'outbound', event: 'app_install_prompt_resent' });
         return;
       }
       if (worker.appInstall && worker.appInstall.status === 'installed') {
-        await meta.sendText(phone, textFor(localeForWorker(worker), 'approvedAlready'));
+        await sendWorkerText(
+          phone,
+          textFor(localeForWorker(worker), 'approvedAlready'),
+          'approved_already_sent'
+        );
         return;
       }
       if (!worker.appInstall || (!worker.appInstall.videoSentAt && worker.appInstall.status !== 'installed')) {
@@ -760,7 +797,11 @@ async function processWorkerMessage(phone, message) {
           });
         }
       }
-      await meta.sendText(phone, textFor(localeForWorker(worker), 'appInstallChooseOption'));
+      await sendWorkerText(
+        phone,
+        textFor(localeForWorker(worker), 'appInstallChooseOption'),
+        'app_install_choose_option_sent'
+      );
       await askAppInstall(phone);
       return;
 
@@ -817,7 +858,7 @@ async function approveWorker(phone, reviewedBy = 'reviewer') {
     reviewedBy,
     syncResult
   });
-  await meta.sendText(phone, textFor(localeForWorker(next), 'complete'));
+  await sendWorkerText(phone, textFor(localeForWorker(next), 'complete'), 'complete_sent');
   try {
     await sendPostApprovalGuidance(phone, next);
   } catch (error) {
@@ -881,10 +922,10 @@ async function rejectWorker(phone, reviewedBy = 'reviewer', action = 'reject') {
         : normalizedAction === 'clear_back'
           ? 'clearerBack'
           : 'clearerBoth';
-    await meta.sendText(phone, textFor(localeForWorker(worker), messageKey));
+    await sendWorkerText(phone, textFor(localeForWorker(worker), messageKey), `${messageKey}_sent`);
     await meta.sendText(config.reviewerPhone, `Requested clearer Aadhaar ${clearSide} from +${phone}.`);
   } else {
-    await meta.sendText(phone, textFor(localeForWorker(worker), 'rejected'));
+    await sendWorkerText(phone, textFor(localeForWorker(worker), 'rejected'), 'rejected_sent');
     await meta.sendText(config.reviewerPhone, `Rejected Aadhaar for +${phone}.`);
   }
   return next;

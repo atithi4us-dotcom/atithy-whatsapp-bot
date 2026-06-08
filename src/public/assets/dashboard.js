@@ -241,6 +241,32 @@ function inboundPayloadReplyId(event) {
   );
 }
 
+function legacyOutboundText(event) {
+  if (event.type !== 'outbound') return '';
+  const labels = {
+    aadhaar_back_prompt: 'Now please upload the back side of your Aadhaar card as a clear image or PDF.',
+    aadhaar_both_received_sent:
+      'Thank you. Your Aadhaar front and back have been received and are now under verification.',
+    aadhaar_consent_prompt:
+      'Aadhaar verification consent\n\nBy selecting I agree, you allow Atithy to collect and store your Aadhaar card only for worker identity verification and onboarding approval.',
+    aadhaar_front_prompt: 'Please upload the front side of your Aadhaar card as a clear image or PDF.',
+    aadhaar_pending_sent: 'Your Aadhaar is still under verification. We will update you soon.',
+    aadhaar_required_sent: 'Aadhaar consent is required to complete worker onboarding.',
+    aadhaar_upload_prompt: 'Please upload your Aadhaar card as a clear image or PDF.',
+    app_install_prompt_sent: 'Please download and install the Atithy app to receive and accept jobs.',
+    choose_option_sent: 'Please choose an option below.',
+    gender_prompt: 'Please select your gender.',
+    interest_prompt: 'Are you interested to join Atithy as a worker?',
+    language_prompt_sent: 'Please choose your language.\nकृपया अपनी भाषा चुनें।',
+    name_prompt: 'Please send your full name.',
+    not_now_sent: 'Okay. You can message us again later if you want to join Atithy.',
+    place_prompt: 'Please select your current district in Kerala.',
+    rejected_sent: 'Your Aadhaar could not be verified. Please upload a valid Aadhaar card again.',
+    start_sent: 'Welcome to Atithy.'
+  };
+  return labels[event.event] || '';
+}
+
 function inferOldMessageText(event, context) {
   if (event.event !== 'message_received') return '';
   if (event.messageType === 'interactive') {
@@ -263,6 +289,9 @@ function eventText(event, context = {}) {
 
   const inferredText = inferOldMessageText(event, context);
   if (inferredText) return inferredText;
+
+  const outboundText = legacyOutboundText(event);
+  if (outboundText) return outboundText;
 
   const labels = {
     interest_prompt: 'Interest prompt sent',
