@@ -98,10 +98,11 @@ function workerInitial(worker) {
 }
 
 function getSortedHistory(worker) {
-  const history = Array.isArray(worker && worker.history)
-    ? worker.history
-    : worker && worker.history
-      ? [worker.history]
+  const rawHistory = worker && worker.history;
+  const history = Array.isArray(rawHistory)
+    ? rawHistory
+    : rawHistory && typeof rawHistory === 'object'
+      ? Object.values(rawHistory)
       : [];
 
   return history

@@ -81,20 +81,35 @@ async function listWorkers(limit = 100) {
 }
 
 async function appendHistory(phone, event) {
-  await getFirestore()
-    .collection('whatsappWorkerOnboarding')
-    .doc(phone)
-    .set(
+  const ref = getFirestore().collection('whatsappWorkerOnboarding').doc(phone);
+  const payload = {
+    at: new Date().toISOString(),
+    ...event
+  };
+
+  await getFirestore().runTransaction(async (transaction) => {
+    const snapshot = await transaction.get(ref);
+    const existing = snapshot.exists ? snapshot.data() : {};
+
+    const existingHistory = Array.isArray(existing.history)
+      ? existing.history
+      : existing.history && typeof existing.history === 'object'
+        ? Object.values(existing.history)
+        : [];
+
+    const nextHistory = [...existingHistory, payload].slice(-500);
+
+    transaction.set(
+      ref,
       {
         phone,
-        updatedAt: new Date().toISOString(),
-        history: admin.firestore.FieldValue.arrayUnion({
-          at: new Date().toISOString(),
-          ...event
-        })
+        ...(snapshot.exists ? {} : existing),
+        updatedAt: payload.at,
+        history: nextHistory
       },
       { merge: true }
     );
+  });
 }
 
 async function claimInboundMessage(phone, messageId, initialWorker) {
