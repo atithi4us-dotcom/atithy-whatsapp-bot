@@ -48,6 +48,10 @@ app.use(
   })
 );
 
+function setNoCacheHeaders(res) {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+}
+
 function summarizeError(error) {
   return {
     message: error.message,
@@ -203,12 +207,14 @@ app.post('/webhook', async (req, res) => {
 });
 
 app.get('/admin/login', (req, res) => {
+  setNoCacheHeaders(res);
   const session = verifySession(parseCookies(req.headers.cookie).atithy_admin_session);
   if (session) return res.redirect('/admin');
   return res.sendFile(path.join(config.publicDir, 'admin', 'login.html'));
 });
 
 app.post('/admin/login', (req, res) => {
+  setNoCacheHeaders(res);
   if (!validateCredentials(req.body.username, req.body.password)) {
     return res.redirect('/admin/login?error=1');
   }
@@ -217,19 +223,23 @@ app.post('/admin/login', (req, res) => {
 });
 
 app.post('/admin/logout', (_req, res) => {
+  setNoCacheHeaders(res);
   clearSessionCookie(res);
   return res.redirect('/admin/login');
 });
 
 app.get('/admin', requireAdmin, (_req, res) => {
+  setNoCacheHeaders(res);
   res.sendFile(path.join(config.publicDir, 'admin', 'index.html'));
 });
 
 app.get('/admin/api/workers', requireAdmin, async (_req, res) => {
+  setNoCacheHeaders(res);
   res.json({ workers: await listWorkers(200) });
 });
 
 app.get('/admin/api/workers/:phone', requireAdmin, async (req, res) => {
+  setNoCacheHeaders(res);
   const worker = await getWorker(req.params.phone.replace(/\D/g, ''));
   if (!worker) return res.status(404).json({ error: 'Worker not found' });
   return res.json({ worker });
@@ -261,10 +271,12 @@ async function streamAadhaarFile(req, res, side) {
 }
 
 app.get('/admin/api/workers/:phone/aadhaar', requireAdmin, async (req, res) => {
+  setNoCacheHeaders(res);
   return streamAadhaarFile(req, res);
 });
 
 app.get('/admin/api/workers/:phone/aadhaar/:side', requireAdmin, async (req, res) => {
+  setNoCacheHeaders(res);
   const side = req.params.side === 'front' || req.params.side === 'back' ? req.params.side : '';
   if (!side) return res.status(404).send('Aadhaar file not found');
   return streamAadhaarFile(req, res, side);
@@ -272,6 +284,7 @@ app.get('/admin/api/workers/:phone/aadhaar/:side', requireAdmin, async (req, res
 
 app.post('/admin/api/workers/:phone/approve-aadhaar', requireAdmin, async (req, res) => {
   try {
+    setNoCacheHeaders(res);
     const result = await approveWorker(req.params.phone.replace(/\D/g, ''), req.admin.username);
     return res.json({ ok: true, result });
   } catch (error) {
@@ -281,6 +294,7 @@ app.post('/admin/api/workers/:phone/approve-aadhaar', requireAdmin, async (req, 
 
 app.post('/admin/api/workers/:phone/reject-aadhaar', requireAdmin, async (req, res) => {
   try {
+    setNoCacheHeaders(res);
     const worker = await rejectWorker(req.params.phone.replace(/\D/g, ''), req.admin.username, 'reject');
     return res.json({ ok: true, worker });
   } catch (error) {
@@ -290,6 +304,7 @@ app.post('/admin/api/workers/:phone/reject-aadhaar', requireAdmin, async (req, r
 
 app.post('/admin/api/workers/:phone/request-clear-aadhaar', requireAdmin, async (req, res) => {
   try {
+    setNoCacheHeaders(res);
     const worker = await rejectWorker(req.params.phone.replace(/\D/g, ''), req.admin.username, 'clear_both');
     return res.json({ ok: true, worker });
   } catch (error) {
@@ -299,6 +314,7 @@ app.post('/admin/api/workers/:phone/request-clear-aadhaar', requireAdmin, async 
 
 app.post('/admin/api/workers/:phone/request-clear-aadhaar-front', requireAdmin, async (req, res) => {
   try {
+    setNoCacheHeaders(res);
     const worker = await rejectWorker(req.params.phone.replace(/\D/g, ''), req.admin.username, 'clear_front');
     return res.json({ ok: true, worker });
   } catch (error) {
@@ -308,6 +324,7 @@ app.post('/admin/api/workers/:phone/request-clear-aadhaar-front', requireAdmin, 
 
 app.post('/admin/api/workers/:phone/request-clear-aadhaar-back', requireAdmin, async (req, res) => {
   try {
+    setNoCacheHeaders(res);
     const worker = await rejectWorker(req.params.phone.replace(/\D/g, ''), req.admin.username, 'clear_back');
     return res.json({ ok: true, worker });
   } catch (error) {

@@ -100,6 +100,11 @@ function workerInitial(worker) {
   return workerDisplayName(worker).replace(/^\+/, '').charAt(0).toUpperCase() || 'A';
 }
 
+function toHistoryTimestamp(value) {
+  const parsed = Date.parse(value || '');
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
 function getSortedHistory(worker) {
   const rawHistory = worker && worker.history;
   const history = Array.isArray(rawHistory)
@@ -108,10 +113,21 @@ function getSortedHistory(worker) {
       ? Object.values(rawHistory)
       : [];
 
+  const fallbackAt = toHistoryTimestamp(worker && worker.updatedAt) || toHistoryTimestamp(worker && worker.createdAt);
+
   return history
     .slice()
-    .filter((event) => event && typeof event === 'object' && event.at)
-    .sort((a, b) => Date.parse(a.at || '') - Date.parse(b.at || ''));
+    .filter((event) => event && typeof event === 'object')
+    .map((event) => {
+      const directAt = toHistoryTimestamp(event.at);
+      const fallbackEventAt = directAt === null ? fallbackAt || null : directAt;
+      return fallbackEventAt === null ? { ...event, __at: null } : { ...event, __at: fallbackEventAt };
+    })
+    .sort((a, b) => {
+      const left = a.__at || Number.MIN_SAFE_INTEGER;
+      const right = b.__at || Number.MIN_SAFE_INTEGER;
+      return left - right;
+    });
 }
 
 const replyLabels = {
@@ -266,12 +282,13 @@ function renderHistory(worker) {
   let lastDateLabel = '';
   const rows = history
     .map((event, index) => {
+      const eventAt = event.__at ? new Date(event.__at).toISOString() : event.at || worker.updatedAt || worker.createdAt;
       const context = {
         worker,
         previous: history[index - 1] || null,
         next: history[index + 1] || null
       };
-      const dateLabel = formatDateLabel(event.at);
+      const dateLabel = formatDateLabel(eventAt);
       const separator =
         dateLabel && dateLabel !== lastDateLabel
           ? `<div class="date-separator"><span>${escapeHtml(dateLabel)}</span></div>`
@@ -283,7 +300,7 @@ function renderHistory(worker) {
           ${separator}
           <div class="system-note">
             <span>${escapeHtml(eventText(event, context))}</span>
-            <time>${escapeHtml(formatClock(event.at))}</time>
+            <time>${escapeHtml(formatClock(eventAt))}</time>
           </div>
         `;
       }
@@ -294,7 +311,7 @@ function renderHistory(worker) {
           <div class="message-bubble">
             <div class="message-text">${escapeHtml(eventText(event, context))}</div>
             ${renderChatExtras(worker, event)}
-            <time>${escapeHtml(formatClock(event.at))}</time>
+            <time>${escapeHtml(formatClock(eventAt))}</time>
           </div>
         </div>
       `;
