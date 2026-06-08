@@ -597,6 +597,42 @@ function districtLabel(district, locale) {
   return (DISTRICT_LABELS[normalized] && DISTRICT_LABELS[normalized][district]) || district;
 }
 
+function normalizeDistrictInput(value) {
+  return normalizeInput(value).replace(/[\s._-]+/g, '');
+}
+
+function districtFromText(text, locale) {
+  const normalized = normalizeDistrictInput(text);
+  if (!normalized) return null;
+
+  const raw = normalizeInput(text);
+  const numberedChoice = Number.parseInt(raw, 10);
+  if (
+    String(numberedChoice) === raw &&
+    numberedChoice >= 1 &&
+    numberedChoice <= DISTRICTS.length
+  ) {
+    return DISTRICTS[numberedChoice - 1];
+  }
+
+  const localesToCheck = [
+    normalizeLocale(locale),
+    ENGLISH,
+    HINDI,
+    TAMIL,
+    BENGALI,
+    ODIA,
+    ASSAMESE
+  ].filter((entry, index, entries) => entries.indexOf(entry) === index);
+
+  return (
+    DISTRICTS.find((district) => {
+      const labels = [district, ...localesToCheck.map((entry) => districtLabel(district, entry))];
+      return labels.some((label) => normalizeDistrictInput(label) === normalized);
+    }) || null
+  );
+}
+
 function isAffirmativeText(text) {
   const normalized = normalizeInput(text);
   return YES_WORDS.some((word) => normalizeInput(word) === normalized);
@@ -623,6 +659,7 @@ module.exports = {
   localeFromLanguageSelection,
   textFor,
   districtLabel,
+  districtFromText,
   isAffirmativeText,
   isNegativeText,
   genderFromText

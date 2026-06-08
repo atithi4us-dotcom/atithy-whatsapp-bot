@@ -84,6 +84,20 @@ app.post('/webhook', async (req, res) => {
                   message.interactive.button_reply &&
                   message.interactive.button_reply.id
                     ? message.interactive.button_reply.id
+                    : message.interactive &&
+                        message.interactive.list_reply &&
+                        message.interactive.list_reply.id
+                      ? message.interactive.list_reply.id
+                      : null,
+                interactiveReplyTitle:
+                  message.interactive &&
+                  message.interactive.button_reply &&
+                  message.interactive.button_reply.title
+                    ? message.interactive.button_reply.title
+                    : message.interactive &&
+                        message.interactive.list_reply &&
+                        message.interactive.list_reply.title
+                      ? message.interactive.list_reply.title
                     : null,
                 id: message.id || null,
                 phoneNumberId:

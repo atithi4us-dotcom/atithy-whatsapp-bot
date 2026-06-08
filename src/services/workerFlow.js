@@ -10,6 +10,7 @@ const {
   localeFromLanguageSelection,
   textFor,
   districtLabel,
+  districtFromText,
   isAffirmativeText,
   isNegativeText,
   genderFromText
@@ -648,7 +649,12 @@ async function processWorkerMessage(phone, message) {
 
     case STATUS.AWAITING_PLACE:
       {
-        const district = districtFromReply(replyId);
+        const district =
+          districtFromReply(replyId) ||
+          districtFromText(
+            text || (interactiveReply && interactiveReply.title),
+            localeForWorker(worker)
+          );
         if (!district) {
           await askPlace(phone);
           return;
