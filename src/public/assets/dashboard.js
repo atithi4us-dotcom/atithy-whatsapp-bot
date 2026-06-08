@@ -33,8 +33,8 @@ function humanize(value) {
 
 function formatTime(value) {
   if (!value) return '-';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
+  const date = timestampToDate(value);
+  if (!date) return String(value);
   return date.toLocaleString([], {
     day: '2-digit',
     month: 'short',
@@ -45,8 +45,8 @@ function formatTime(value) {
 
 function formatClock(value) {
   if (!value) return '';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '';
+  const date = timestampToDate(value);
+  if (!date) return '';
   return date.toLocaleTimeString([], {
     hour: '2-digit',
     minute: '2-digit'
@@ -55,8 +55,8 @@ function formatClock(value) {
 
 function formatInboxTime(value) {
   if (!value) return '';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '';
+  const date = timestampToDate(value);
+  if (!date) return '';
   const today = new Date();
   const yesterday = new Date();
   yesterday.setDate(today.getDate() - 1);
@@ -71,8 +71,8 @@ function formatInboxTime(value) {
 
 function formatDateLabel(value) {
   if (!value) return '';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '';
+  const date = timestampToDate(value);
+  if (!date) return '';
   const today = new Date();
   const yesterday = new Date();
   yesterday.setDate(today.getDate() - 1);
@@ -92,6 +92,29 @@ function aadhaarSideUrl(worker, side) {
     : '';
 }
 
+function timestampToDate(value) {
+  if (!value) return null;
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
+  if (typeof value === 'number') {
+    const date = new Date(value < 10000000000 ? value * 1000 : value);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+  if (typeof value === 'object') {
+    if (typeof value.toDate === 'function') {
+      const date = value.toDate();
+      return date instanceof Date && !Number.isNaN(date.getTime()) ? date : null;
+    }
+    const seconds = value.seconds || value._seconds;
+    if (typeof seconds === 'number') {
+      const millis = seconds * 1000 + Math.floor((value.nanoseconds || value._nanoseconds || 0) / 1000000);
+      const date = new Date(millis);
+      return Number.isNaN(date.getTime()) ? null : date;
+    }
+  }
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? null : new Date(parsed);
+}
+
 function workerDisplayName(worker) {
   return worker.name || `+${worker.phone}`;
 }
@@ -101,8 +124,8 @@ function workerInitial(worker) {
 }
 
 function toHistoryTimestamp(value) {
-  const parsed = Date.parse(value || '');
-  return Number.isNaN(parsed) ? null : parsed;
+  const date = timestampToDate(value);
+  return date ? date.getTime() : null;
 }
 
 function getSortedHistory(worker) {
@@ -173,6 +196,51 @@ function readableReplyLabel(replyId) {
   return district || '';
 }
 
+function firstText(...values) {
+  for (const value of values) {
+    if (typeof value !== 'string') continue;
+    const text = value.trim();
+    if (text) return text;
+  }
+  return '';
+}
+
+function inboundPayloadText(event) {
+  const message = event.message || event.rawMessage || event.payload || {};
+  const interactive = event.interactive || message.interactive || {};
+  const buttonReply = interactive.button_reply || {};
+  const listReply = interactive.list_reply || {};
+  const image = event.image || message.image || {};
+  const documentFile = event.document || message.document || {};
+
+  return firstText(
+    event.text,
+    event.typedText,
+    event.body,
+    event.caption,
+    event.messageText,
+    event.replyTitle,
+    event.reply && event.reply.title,
+    buttonReply.title,
+    listReply.title,
+    message.text && message.text.body,
+    image.caption,
+    documentFile.caption,
+    documentFile.filename
+  );
+}
+
+function inboundPayloadReplyId(event) {
+  const message = event.message || event.rawMessage || event.payload || {};
+  const interactive = event.interactive || message.interactive || {};
+  return firstText(
+    event.replyId,
+    event.reply && event.reply.id,
+    interactive.button_reply && interactive.button_reply.id,
+    interactive.list_reply && interactive.list_reply.id
+  );
+}
+
 function inferOldMessageText(event, context) {
   if (event.event !== 'message_received') return '';
   if (event.messageType === 'interactive') {
@@ -187,9 +255,11 @@ function inferOldMessageText(event, context) {
 }
 
 function eventText(event, context = {}) {
-  if (event.text) return event.text;
-  if (event.replyTitle) return event.replyTitle;
-  if (event.replyId) return readableReplyLabel(event.replyId) || event.replyId;
+  const payloadText = inboundPayloadText(event);
+  if (payloadText) return payloadText;
+
+  const replyId = inboundPayloadReplyId(event);
+  if (replyId) return readableReplyLabel(replyId) || replyId;
 
   const inferredText = inferOldMessageText(event, context);
   if (inferredText) return inferredText;
@@ -204,6 +274,8 @@ function eventText(event, context = {}) {
     aadhaar_upload_prompt: 'Aadhaar upload prompt sent',
     aadhaar_front_prompt: 'Aadhaar front upload prompt sent',
     aadhaar_back_prompt: 'Aadhaar back upload prompt sent',
+    app_install_confirmed: 'Worker confirmed app install',
+    app_install_prompt_resent: 'App install prompt resent',
     app_install_prompt_sent: 'App install prompt sent',
     aadhaar_approved: 'Aadhaar approved',
     aadhaar_back_uploaded: 'Aadhaar back uploaded',
@@ -213,6 +285,8 @@ function eventText(event, context = {}) {
     front_clear_copy_requested: 'Clear Aadhaar front requested',
     language_prompt_sent: 'Language selection sent',
     message_received: 'Message received',
+    job_acceptance_video_sent: 'Job acceptance video sent',
+    post_approval_guidance_retry_failed: 'Post-approval guidance failed',
     rejected: 'Aadhaar rejected',
     start_sent: 'Onboarding started',
     worker_created: 'Worker profile created',

@@ -22,7 +22,10 @@ body {
   margin: 0;
   color: var(--ink);
   background: var(--bg);
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
 }
 
 button,
@@ -83,7 +86,7 @@ button.ghost {
   display: grid;
   grid-template-columns: 380px 1fr;
   gap: 0;
-  height: calc(100vh - 82px);
+  min-height: 0;
   padding: 14px;
 }
 
@@ -97,6 +100,8 @@ button.ghost {
 .panel {
   min-height: 0;
   overflow: hidden;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
 }
 
 .layout .panel:first-child {
@@ -118,7 +123,7 @@ button.ghost {
 
 .worker-list {
   display: grid;
-  max-height: calc(100vh - 151px);
+  min-height: 0;
   overflow: auto;
 }
 
@@ -223,6 +228,11 @@ button.ghost {
 .detail-panel {
   padding: 0;
   min-width: 0;
+  min-height: 0;
+}
+
+.detail-panel > #details {
+  min-height: 0;
 }
 
 .conversation {
@@ -386,6 +396,7 @@ button.ghost {
   align-content: start;
   gap: 16px;
   min-width: 0;
+  min-height: 0;
   overflow: auto;
   padding: 18px;
   background: #fbfcfd;
@@ -472,6 +483,13 @@ button.ghost {
 }
 
 @media (max-width: 820px) {
+  body {
+    height: auto;
+    min-height: 100vh;
+    overflow: auto;
+    display: block;
+  }
+
   .topbar {
     align-items: flex-start;
     gap: 14px;
