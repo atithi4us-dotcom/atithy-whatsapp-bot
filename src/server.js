@@ -5,7 +5,6 @@ const {
   initializeStorage,
   listWorkers,
   getWorker,
-  getFirestore,
   getBucket,
   getStorageDiagnostics
 } = require('./services/storage');
@@ -239,17 +238,6 @@ app.post('/admin/logout', (_req, res) => {
 app.get('/admin', requireAdmin, (_req, res) => {
   setNoCacheHeaders(res);
   res.sendFile(path.join(config.publicDir, 'admin', 'index.html'));
-});
-
-app.post('/maintenance/reset-test-worker', async (req, res) => {
-  const token = req.headers['x-maintenance-token'] || req.query.token;
-  if (token !== 'hWZ-lIOrsE4PlA95nVLM62H-fP7b5oYKGAtmFHUULTI') {
-    return res.status(404).json({ error: 'Not found' });
-  }
-
-  const phone = '917736108778';
-  await getFirestore().collection('whatsappWorkerOnboarding').doc(phone).delete();
-  return res.json({ ok: true, deleted: phone });
 });
 
 app.get('/admin/api/workers', requireAdmin, async (_req, res) => {
