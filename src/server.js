@@ -39,7 +39,14 @@ function getWebhookPreviewText(message) {
 
 app.use(express.json({ limit: '2mb' }));
 app.use(express.urlencoded({ extended: false }));
-app.use('/admin/assets', express.static(path.join(config.publicDir, 'assets')));
+app.use(
+  '/admin/assets',
+  express.static(path.join(config.publicDir, 'assets'), {
+    setHeaders: (res) => {
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+    }
+  })
+);
 
 function summarizeError(error) {
   return {

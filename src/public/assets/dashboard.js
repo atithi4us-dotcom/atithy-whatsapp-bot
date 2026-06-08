@@ -1,9 +1,12 @@
 const workersEl = document.getElementById('workers');
 const detailsEl = document.getElementById('details');
 const refreshBtn = document.getElementById('refreshBtn');
+const REFRESH_INTERVAL_MS = 6000;
 
 let workers = [];
 let selectedPhone = '';
+let isLoading = false;
+let refreshTimer = null;
 
 function fmt(value) {
   return value || '-';
@@ -422,22 +425,28 @@ function renderDetails(worker) {
 }
 
 async function loadWorkers() {
-  const data = await fetchJson('/admin/api/workers');
-  workers = data.workers || [];
-  if (selectedPhone && !workers.some((worker) => worker.phone === selectedPhone)) {
-    selectedPhone = '';
-  }
-  if (!selectedPhone && workers.length) {
-    selectedPhone = workers[0].phone;
-  }
-  renderWorkers();
-  if (!workers.length) {
-    detailsEl.innerHTML = '<div class="empty">No workers yet.</div>';
-    return;
-  }
-  if (selectedPhone) {
-    const selected = await fetchJson(`/admin/api/workers/${selectedPhone}`);
-    renderDetails(selected.worker);
+  if (isLoading) return;
+  isLoading = true;
+  try {
+    const data = await fetchJson('/admin/api/workers');
+    workers = data.workers || [];
+    if (selectedPhone && !workers.some((worker) => worker.phone === selectedPhone)) {
+      selectedPhone = '';
+    }
+    if (!selectedPhone && workers.length) {
+      selectedPhone = workers[0].phone;
+    }
+    renderWorkers();
+    if (!workers.length) {
+      detailsEl.innerHTML = '<div class="empty">No workers yet.</div>';
+      return;
+    }
+    if (selectedPhone) {
+      const selected = await fetchJson(`/admin/api/workers/${selectedPhone}`);
+      renderDetails(selected.worker);
+    }
+  } finally {
+    isLoading = false;
   }
 }
 
@@ -480,6 +489,20 @@ detailsEl.addEventListener('click', async (event) => {
 });
 
 refreshBtn.addEventListener('click', loadWorkers);
+
+function ensureAutoRefresh() {
+  if (refreshTimer) return;
+  refreshTimer = setInterval(() => {
+    if (document.hidden) return;
+    loadWorkers().catch(() => {});
+  }, REFRESH_INTERVAL_MS);
+}
+
+window.addEventListener('focus', () => {
+  loadWorkers().catch(() => {});
+});
+
+ensureAutoRefresh();
 loadWorkers().catch((error) => {
   detailsEl.innerHTML = `<div class="empty">${error.message}</div>`;
 });
