@@ -325,6 +325,10 @@ function renderHistory(worker) {
   `;
 }
 
+function getWorkerFromList(phone) {
+  return workers.find((worker) => worker.phone === phone) || null;
+}
+
 function scrollChatToLatest() {
   const thread = detailsEl.querySelector('.chat-thread');
   if (!thread) return;
@@ -459,8 +463,14 @@ async function loadWorkers() {
       return;
     }
     if (selectedPhone) {
+      const listWorker = getWorkerFromList(selectedPhone);
+      if (listWorker) {
+        renderDetails(listWorker);
+      }
       const selected = await fetchJson(`/admin/api/workers/${selectedPhone}`);
-      renderDetails(selected.worker);
+      if (selected && selected.worker) {
+        renderDetails(selected.worker);
+      }
     }
   } finally {
     isLoading = false;
@@ -472,8 +482,18 @@ workersEl.addEventListener('click', async (event) => {
   if (!row) return;
   selectedPhone = row.dataset.phone;
   renderWorkers();
-  const data = await fetchJson(`/admin/api/workers/${row.dataset.phone}`);
-  renderDetails(data.worker);
+  const listWorker = getWorkerFromList(selectedPhone);
+  if (listWorker) {
+    renderDetails(listWorker);
+  }
+  try {
+    const data = await fetchJson(`/admin/api/workers/${row.dataset.phone}`);
+    if (data && data.worker) {
+      renderDetails(data.worker);
+    }
+  } catch (_error) {
+    // Keep showing list payload if detail endpoint is temporarily unavailable.
+  }
 });
 
 detailsEl.addEventListener('click', async (event) => {
