@@ -98,8 +98,15 @@ function workerInitial(worker) {
 }
 
 function getSortedHistory(worker) {
-  return (Array.isArray(worker.history) ? worker.history : [])
+  const history = Array.isArray(worker && worker.history)
+    ? worker.history
+    : worker && worker.history
+      ? [worker.history]
+      : [];
+
+  return history
     .slice()
+    .filter((event) => event && typeof event === 'object' && event.at)
     .sort((a, b) => Date.parse(a.at || '') - Date.parse(b.at || ''));
 }
 
@@ -168,6 +175,16 @@ function eventText(event, context = {}) {
   if (inferredText) return inferredText;
 
   const labels = {
+    interest_prompt: 'Interest prompt sent',
+    language_prompt_sent: 'Language selection sent',
+    name_prompt: 'Name prompt sent',
+    gender_prompt: 'Gender prompt sent',
+    place_prompt: 'District prompt sent',
+    aadhaar_consent_prompt: 'Aadhaar consent prompt sent',
+    aadhaar_upload_prompt: 'Aadhaar upload prompt sent',
+    aadhaar_front_prompt: 'Aadhaar front upload prompt sent',
+    aadhaar_back_prompt: 'Aadhaar back upload prompt sent',
+    app_install_prompt_sent: 'App install prompt sent',
     aadhaar_approved: 'Aadhaar approved',
     aadhaar_back_uploaded: 'Aadhaar back uploaded',
     aadhaar_front_uploaded: 'Aadhaar front uploaded',

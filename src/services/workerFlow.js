@@ -198,6 +198,7 @@ async function askLanguage(phone) {
       ].join('\n')
     );
   }
+  await storage.appendHistory(phone, { type: 'outbound', event: 'language_prompt_sent' });
 }
 
 async function askInterest(phone, locale) {
@@ -205,6 +206,7 @@ async function askInterest(phone, locale) {
     { id: BUTTONS.INTEREST_YES, title: textFor(locale, 'yes') },
     { id: BUTTONS.INTEREST_NO, title: textFor(locale, 'no') }
   ]);
+  await storage.appendHistory(phone, { type: 'outbound', event: 'interest_prompt' });
 }
 
 async function sendStart(phone, locale) {
@@ -219,7 +221,6 @@ async function createOrStart(phone) {
   }
   await updateWorker(phone, { languagePromptSentAt: now() });
   await askLanguage(phone);
-  await storage.appendHistory(phone, { type: 'outbound', event: 'language_prompt_sent' });
   return worker;
 }
 
@@ -238,6 +239,7 @@ async function updateWorker(phone, patch) {
 async function askName(phone) {
   const worker = await storage.getWorker(phone);
   await meta.sendText(phone, textFor(localeForWorker(worker), 'name'));
+  await storage.appendHistory(phone, { type: 'outbound', event: 'name_prompt' });
 }
 
 async function askGender(phone) {
@@ -246,6 +248,7 @@ async function askGender(phone) {
     { id: BUTTONS.GENDER_MALE, title: textFor(locale, 'male') },
     { id: BUTTONS.GENDER_FEMALE, title: textFor(locale, 'female') }
   ]);
+  await storage.appendHistory(phone, { type: 'outbound', event: 'gender_prompt' });
 }
 
 async function askPlace(phone) {
@@ -272,6 +275,7 @@ async function askPlace(phone) {
       }))
     }
   ]);
+  await storage.appendHistory(phone, { type: 'outbound', event: 'place_prompt' });
 }
 
 async function askAadhaarConsent(phone) {
@@ -280,21 +284,25 @@ async function askAadhaarConsent(phone) {
     { id: BUTTONS.CONSENT_YES, title: textFor(locale, 'consentYes') },
     { id: BUTTONS.CONSENT_NO, title: textFor(locale, 'consentNo') }
   ]);
+  await storage.appendHistory(phone, { type: 'outbound', event: 'aadhaar_consent_prompt' });
 }
 
 async function askAadhaar(phone) {
   const worker = await storage.getWorker(phone);
   await meta.sendText(phone, textFor(localeForWorker(worker), 'aadhaarUpload'));
+  await storage.appendHistory(phone, { type: 'outbound', event: 'aadhaar_upload_prompt' });
 }
 
 async function askAadhaarFront(phone) {
   const worker = await storage.getWorker(phone);
   await meta.sendText(phone, textFor(localeForWorker(worker), 'aadhaarFrontUpload'));
+  await storage.appendHistory(phone, { type: 'outbound', event: 'aadhaar_front_prompt' });
 }
 
 async function askAadhaarBack(phone) {
   const worker = await storage.getWorker(phone);
   await meta.sendText(phone, textFor(localeForWorker(worker), 'aadhaarBackUpload'));
+  await storage.appendHistory(phone, { type: 'outbound', event: 'aadhaar_back_prompt' });
 }
 
 function jobAcceptanceVideoPathFor(locale) {
@@ -328,6 +336,7 @@ async function askAppInstall(phone) {
       { id: BUTTONS.APP_INSTALLED_NO, title: textFor(locale, 'installedNo') }
     ]
   );
+  await storage.appendHistory(phone, { type: 'outbound', event: 'app_install_prompt_sent' });
   await updateAppInstall(phone, {
     status: 'awaiting_confirmation',
     linkSentAt: now(),
@@ -353,7 +362,6 @@ async function sendPostApprovalGuidance(phone, worker) {
     videoPath: path.basename(videoPath)
   });
   await askAppInstall(phone);
-  await storage.appendHistory(phone, { type: 'outbound', event: 'app_install_prompt_sent' });
 }
 
 function getMediaFromMessage(message) {
