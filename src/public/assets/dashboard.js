@@ -338,7 +338,13 @@ function scrollChatToLatest() {
 }
 
 async function fetchJson(url, options) {
-  const response = await fetch(url, {
+  const method = options && typeof options.method === 'string' ? options.method.toUpperCase() : 'GET';
+  const requestUrl =
+    method === 'GET' && typeof url === 'string'
+      ? `${url}${url.includes('?') ? '&' : '?'}_ts=${Date.now()}`
+      : url;
+
+  const response = await fetch(requestUrl, {
     headers: { 'Content-Type': 'application/json' },
     credentials: 'same-origin',
     cache: 'no-store',
