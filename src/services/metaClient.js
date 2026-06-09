@@ -9,6 +9,7 @@ function summarizePayload(payload) {
     type: payload.type,
     text: payload.text ? payload.text.body : undefined,
     interactiveType: payload.interactive ? payload.interactive.type : undefined,
+    template: payload.template ? payload.template.name : undefined,
     mediaId:
       (payload.image && payload.image.id) ||
       (payload.video && payload.video.id) ||
@@ -75,6 +76,45 @@ async function sendList(to, body, buttonText, sections) {
         button: buttonText,
         sections
       }
+    }
+  });
+}
+
+async function sendTemplate(to, name, languageCode, bodyParameters = [], buttonPayload) {
+  const components = [];
+  if (bodyParameters.length) {
+    components.push({
+      type: 'body',
+      parameters: bodyParameters.map((text) => ({
+        type: 'text',
+        text: String(text || '-')
+      }))
+    });
+  }
+  if (buttonPayload) {
+    components.push({
+      type: 'button',
+      sub_type: 'quick_reply',
+      index: '0',
+      parameters: [
+        {
+          type: 'payload',
+          payload: buttonPayload
+        }
+      ]
+    });
+  }
+
+  return sendRequest({
+    messaging_product: 'whatsapp',
+    to,
+    type: 'template',
+    template: {
+      name,
+      language: {
+        code: languageCode
+      },
+      ...(components.length ? { components } : {})
     }
   });
 }
@@ -177,6 +217,7 @@ module.exports = {
   sendText,
   sendButtons,
   sendList,
+  sendTemplate,
   sendImageById,
   sendDocumentById,
   uploadMediaFromFile,

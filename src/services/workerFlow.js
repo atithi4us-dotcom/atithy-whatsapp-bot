@@ -104,7 +104,7 @@ function getInteractiveReply(message) {
 
 function getReplyId(message) {
   const reply = getInteractiveReply(message);
-  return (reply && reply.id) || '';
+  return (reply && reply.id) || (message.button && message.button.payload) || '';
 }
 
 function normalizePhone(phone) {
@@ -447,7 +447,7 @@ async function sendReviewerAadhaarSide(worker, side, aadhaarSide) {
   }
 }
 
-async function notifyReviewer(worker) {
+async function sendReviewerReviewCards(worker) {
   const caption = [
     'Atithy Aadhaar verification',
     '',
@@ -469,6 +469,47 @@ async function notifyReviewer(worker) {
     { id: `reject_${worker.phone}`, title: 'Reject' },
     { id: `clear_both_${worker.phone}`, title: 'Need clear copy' }
   ]);
+}
+
+async function notifyReviewer(worker) {
+  try {
+    await meta.sendTemplate(
+      config.reviewerPhone,
+      config.reviewerTemplateName,
+      config.reviewerTemplateLanguage,
+      [
+        worker.name || '-',
+        worker.phone,
+        worker.currentPlace || '-'
+      ],
+      'show_pending_reviews'
+    );
+    await storage.appendHistory(worker.phone, {
+      type: 'system',
+      event: 'reviewer_template_alert_sent',
+      reviewerPhone: config.reviewerPhone,
+      template: config.reviewerTemplateName
+    });
+  } catch (error) {
+    const response = error.response && error.response.data ? error.response.data : null;
+    console.error(
+      '[REVIEWER_TEMPLATE_ERROR]',
+      JSON.stringify({
+        phone: worker.phone,
+        reviewerPhone: config.reviewerPhone,
+        template: config.reviewerTemplateName,
+        error: error.message,
+        response
+      })
+    );
+    await storage.appendHistory(worker.phone, {
+      type: 'system',
+      event: 'reviewer_template_alert_failed',
+      reviewerPhone: config.reviewerPhone,
+      template: config.reviewerTemplateName,
+      error: response && response.error && response.error.message ? response.error.message : error.message
+    });
+  }
 }
 
 function legacyAadhaarFrom(worker) {
@@ -972,7 +1013,7 @@ async function sendPendingReviewSummary(phone) {
   );
 
   for (const worker of reviewCards) {
-    await notifyReviewer(worker);
+    await sendReviewerReviewCards(worker);
   }
 
   if (pendingWorkers.length > reviewCards.length) {

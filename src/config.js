@@ -18,6 +18,8 @@ module.exports = {
   whatsappVerifyToken: process.env.WHATSAPP_VERIFY_TOKEN || 'atithy-whatsapp-webhook',
   dryRun: process.env.WHATSAPP_DRY_RUN === 'true',
   reviewerPhone: (process.env.AADHAAR_REVIEWER_PHONE || '919446600809').replace(/\D/g, ''),
+  reviewerTemplateName: process.env.AADHAAR_REVIEWER_TEMPLATE_NAME || 'aadhaar_review_alert',
+  reviewerTemplateLanguage: process.env.AADHAAR_REVIEWER_TEMPLATE_LANGUAGE || 'en_US',
   firebaseProjectId: requiredEnv('FIREBASE_PROJECT_ID'),
   firebaseClientEmail: requiredEnv('FIREBASE_CLIENT_EMAIL'),
   firebasePrivateKey: parsePrivateKey(requiredEnv('FIREBASE_PRIVATE_KEY')),
