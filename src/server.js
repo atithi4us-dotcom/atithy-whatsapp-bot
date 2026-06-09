@@ -240,6 +240,93 @@ app.get('/admin', requireAdmin, (_req, res) => {
   res.sendFile(path.join(config.publicDir, 'admin', 'index.html'));
 });
 
+app.post('/maintenance/create-reviewer-template', async (req, res) => {
+  const token = req.headers['x-maintenance-token'] || req.query.token;
+  if (token !== '35Lt5GiXkQKuXtbrF59k7MoxlIpykHmawKA36Ep91h4') {
+    return res.status(404).json({ error: 'Not found' });
+  }
+
+  const headers = {
+    Authorization: `Bearer ${config.whatsappToken}`,
+    'Content-Type': 'application/json'
+  };
+  const phoneUrl = `https://graph.facebook.com/${config.graphApiVersion}/${config.whatsappPhoneNumberId}?fields=whatsapp_business_account`;
+  const phoneResponse = await fetch(phoneUrl, { headers });
+  const phoneData = await phoneResponse.json();
+  if (!phoneResponse.ok) {
+    return res.status(phoneResponse.status).json({ ok: false, step: 'phone_lookup', response: phoneData });
+  }
+
+  const waba = phoneData.whatsapp_business_account;
+  const wabaId = waba && (typeof waba === 'string' ? waba : waba.id);
+  if (!wabaId) {
+    return res.status(400).json({ ok: false, step: 'phone_lookup', response: phoneData });
+  }
+
+  const templateName = config.reviewerTemplateName;
+  const listUrl = `https://graph.facebook.com/${config.graphApiVersion}/${wabaId}/message_templates?name=${encodeURIComponent(
+    templateName
+  )}&limit=10`;
+  const listResponse = await fetch(listUrl, { headers });
+  const listData = await listResponse.json();
+  if (!listResponse.ok) {
+    return res.status(listResponse.status).json({ ok: false, step: 'template_lookup', response: listData });
+  }
+
+  const existingTemplate = Array.isArray(listData.data)
+    ? listData.data.find((template) => template.name === templateName)
+    : null;
+  if (existingTemplate) {
+    return res.json({ ok: true, existed: true, wabaId, template: existingTemplate });
+  }
+
+  const createResponse = await fetch(
+    `https://graph.facebook.com/${config.graphApiVersion}/${wabaId}/message_templates`,
+    {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        name: templateName,
+        language: config.reviewerTemplateLanguage,
+        category: 'UTILITY',
+        components: [
+          {
+            type: 'BODY',
+            text: [
+              'New Aadhaar review pending.',
+              '',
+              'Worker: {{1}}',
+              'Phone: +{{2}}',
+              'Place: {{3}}',
+              '',
+              'Tap Show reviews to receive Aadhaar media and review actions.'
+            ].join('\n'),
+            example: {
+              body_text: [['Rakhav', '917736108778', 'Ernakulam']]
+            }
+          },
+          {
+            type: 'BUTTONS',
+            buttons: [
+              {
+                type: 'QUICK_REPLY',
+                text: 'Show reviews'
+              }
+            ]
+          }
+        ]
+      })
+    }
+  );
+  const createData = await createResponse.json();
+  return res.status(createResponse.ok ? 200 : createResponse.status).json({
+    ok: createResponse.ok,
+    existed: false,
+    wabaId,
+    response: createData
+  });
+});
+
 app.get('/admin/api/workers', requireAdmin, async (_req, res) => {
   setNoCacheHeaders(res);
   res.json({ workers: await listWorkers(200) });
