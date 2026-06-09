@@ -250,6 +250,56 @@ app.post('/maintenance/create-reviewer-template', async (req, res) => {
     Authorization: `Bearer ${config.whatsappToken}`,
     'Content-Type': 'application/json'
   };
+  async function graphGet(path) {
+    const response = await fetch(`https://graph.facebook.com/${config.graphApiVersion}${path}`, { headers });
+    const data = await response.json();
+    return { ok: response.ok, status: response.status, data };
+  }
+
+  async function findWabaId() {
+    const probes = [];
+
+    const phoneProbe = await graphGet(
+      `/${config.whatsappPhoneNumberId}?fields=id,display_phone_number,verified_name,quality_rating,platform_type`
+    );
+    probes.push({ step: 'phone_lookup', ...phoneProbe });
+
+    const businessProbe = await graphGet('/me/businesses?fields=id,name');
+    probes.push({ step: 'businesses', ...businessProbe });
+
+    const businesses = businessProbe.ok && Array.isArray(businessProbe.data.data) ? businessProbe.data.data : [];
+    for (const business of businesses) {
+      const ownedProbe = await graphGet(
+        `/${business.id}/owned_whatsapp_business_accounts?fields=id,name,currency,timezone_id,message_template_namespace`
+      );
+      probes.push({ step: `owned_wabas:${business.id}`, ...ownedProbe });
+      const ownedWaba =
+        ownedProbe.ok && Array.isArray(ownedProbe.data.data) && ownedProbe.data.data.length
+          ? ownedProbe.data.data[0]
+          : null;
+      if (ownedWaba && ownedWaba.id) return { wabaId: ownedWaba.id, probes };
+
+      const clientProbe = await graphGet(
+        `/${business.id}/client_whatsapp_business_accounts?fields=id,name,currency,timezone_id,message_template_namespace`
+      );
+      probes.push({ step: `client_wabas:${business.id}`, ...clientProbe });
+      const clientWaba =
+        clientProbe.ok && Array.isArray(clientProbe.data.data) && clientProbe.data.data.length
+          ? clientProbe.data.data[0]
+          : null;
+      if (clientWaba && clientWaba.id) return { wabaId: clientWaba.id, probes };
+    }
+
+    return { wabaId: '', probes };
+  }
+
+  const found = await findWabaId();
+  const wabaId = found.wabaId;
+  if (!wabaId) {
+    return res.status(400).json({ ok: false, step: 'waba_lookup', probes: found.probes });
+  }
+
+  /*
   const phoneUrl = `https://graph.facebook.com/${config.graphApiVersion}/${config.whatsappPhoneNumberId}?fields=whatsapp_business_account`;
   const phoneResponse = await fetch(phoneUrl, { headers });
   const phoneData = await phoneResponse.json();
@@ -262,6 +312,7 @@ app.post('/maintenance/create-reviewer-template', async (req, res) => {
   if (!wabaId) {
     return res.status(400).json({ ok: false, step: 'phone_lookup', response: phoneData });
   }
+  */
 
   const templateName = config.reviewerTemplateName;
   const listUrl = `https://graph.facebook.com/${config.graphApiVersion}/${wabaId}/message_templates?name=${encodeURIComponent(
