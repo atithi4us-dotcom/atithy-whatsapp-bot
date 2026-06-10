@@ -92,6 +92,10 @@ app.get('/health', (_req, res) => {
   });
 });
 
+app.get('/privacy', (_req, res) => {
+  res.sendFile(path.join(config.publicDir, 'privacy.html'));
+});
+
 app.get('/webhook', (req, res) => {
   const mode = req.query['hub.mode'];
   const token = req.query['hub.verify_token'];
