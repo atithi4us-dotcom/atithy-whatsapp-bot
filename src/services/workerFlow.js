@@ -418,7 +418,14 @@ function getMediaFromMessage(message) {
 }
 
 async function sendReviewerAadhaarSide(worker, side, aadhaarSide) {
-  if (!aadhaarSide || !aadhaarSide.whatsappMediaId) return;
+  if (!aadhaarSide || !aadhaarSide.whatsappMediaId) {
+    return {
+      type: `review_${side}_media`,
+      ok: false,
+      skipped: true,
+      reason: 'missing_whatsapp_media_id'
+    };
+  }
 
   const caption = [
     `Aadhaar ${side}`,
@@ -430,21 +437,35 @@ async function sendReviewerAadhaarSide(worker, side, aadhaarSide) {
   ].join('\n');
 
   try {
+    let response;
     if (aadhaarSide.whatsappMediaType === 'image') {
-      await meta.sendImageById(config.reviewerPhone, aadhaarSide.whatsappMediaId, caption);
+      response = await meta.sendImageById(config.reviewerPhone, aadhaarSide.whatsappMediaId, caption);
     } else {
-      await meta.sendDocumentById(
+      response = await meta.sendDocumentById(
         config.reviewerPhone,
         aadhaarSide.whatsappMediaId,
         aadhaarSide.filename || `aadhaar-${side}.pdf`,
         caption
       );
     }
+    return {
+      type: `review_${side}_media`,
+      ok: true,
+      mediaId: aadhaarSide.whatsappMediaId,
+      response
+    };
   } catch (error) {
     console.error(
       '[REVIEWER_AADHAAR_MEDIA_ERROR]',
       JSON.stringify({ phone: worker.phone, side, error: error.message })
     );
+    return {
+      type: `review_${side}_media`,
+      ok: false,
+      mediaId: aadhaarSide.whatsappMediaId,
+      error: error.message,
+      response: error.response ? error.response.data : null
+    };
   }
 }
 
@@ -461,19 +482,73 @@ async function sendReviewerReviewCards(worker) {
     'Please review in admin dashboard and choose an action.'
   ].join('\n');
 
-  await meta.sendText(config.reviewerPhone, caption);
-  await sendReviewerAadhaarSide(worker, 'front', worker.aadhaar && worker.aadhaar.front);
-  await sendReviewerAadhaarSide(worker, 'back', worker.aadhaar && worker.aadhaar.back);
+  const attempts = [];
+  const textResponse = await meta.sendText(config.reviewerPhone, caption);
+  attempts.push({ type: 'review_summary_text', ok: true, response: textResponse });
 
-  await meta.sendButtons(config.reviewerPhone, `Aadhaar action for +${worker.phone}`, [
+  attempts.push(await sendReviewerAadhaarSide(worker, 'front', worker.aadhaar && worker.aadhaar.front));
+  attempts.push(await sendReviewerAadhaarSide(worker, 'back', worker.aadhaar && worker.aadhaar.back));
+
+  const buttonsResponse = await meta.sendButtons(config.reviewerPhone, `Aadhaar action for +${worker.phone}`, [
     { id: `approve_${worker.phone}`, title: 'Approve' },
     { id: `reject_${worker.phone}`, title: 'Reject' },
     { id: `clear_both_${worker.phone}`, title: 'Need clear copy' }
   ]);
+  attempts.push({ type: 'review_action_buttons', ok: true, response: buttonsResponse });
+
+  return attempts;
 }
 
 async function notifyReviewer(worker) {
   const attemptedAt = now();
+  try {
+    const attempts = await sendReviewerReviewCards(worker);
+    lastReviewerNotification = {
+      ok: true,
+      method: 'direct_review_cards',
+      attemptedAt,
+      sentAt: now(),
+      workerPhone: worker.phone,
+      reviewerPhone: config.reviewerPhone,
+      attempts
+    };
+    await updateWorker(worker.phone, {
+      review: {
+        notificationSentAt: lastReviewerNotification.sentAt,
+        notificationMethod: 'direct_review_cards',
+        notificationAttempts: attempts
+      }
+    });
+    await storage.appendHistory(worker.phone, {
+      type: 'system',
+      event: 'reviewer_direct_alert_sent',
+      reviewerPhone: config.reviewerPhone,
+      attempts
+    });
+    return lastReviewerNotification;
+  } catch (directError) {
+    const directResponse =
+      directError.response && directError.response.data ? directError.response.data : null;
+    await storage.appendHistory(worker.phone, {
+      type: 'system',
+      event: 'reviewer_direct_alert_failed',
+      reviewerPhone: config.reviewerPhone,
+      error:
+        directResponse && directResponse.error && directResponse.error.message
+          ? directResponse.error.message
+          : directError.message
+    });
+    console.error(
+      '[REVIEWER_DIRECT_ALERT_ERROR]',
+      JSON.stringify({
+        phone: worker.phone,
+        reviewerPhone: config.reviewerPhone,
+        error: directError.message,
+        response: directResponse
+      })
+    );
+  }
+
   try {
     const response = await meta.sendTemplate(
       config.reviewerPhone,
@@ -492,6 +567,7 @@ async function notifyReviewer(worker) {
         : null;
     lastReviewerNotification = {
       ok: true,
+      method: 'template_fallback',
       attemptedAt,
       sentAt: now(),
       workerPhone: worker.phone,
@@ -499,6 +575,13 @@ async function notifyReviewer(worker) {
       template: config.reviewerTemplateName,
       messageId
     };
+    await updateWorker(worker.phone, {
+      review: {
+        notificationSentAt: lastReviewerNotification.sentAt,
+        notificationMethod: 'template_fallback',
+        notificationAttempts: [lastReviewerNotification]
+      }
+    });
     await storage.appendHistory(worker.phone, {
       type: 'system',
       event: 'reviewer_template_alert_sent',
@@ -513,6 +596,7 @@ async function notifyReviewer(worker) {
       response && response.error && response.error.message ? response.error.message : error.message;
     lastReviewerNotification = {
       ok: false,
+      method: 'template_fallback',
       attemptedAt,
       failedAt: now(),
       workerPhone: worker.phone,
@@ -1083,6 +1167,22 @@ function getWorkerFlowDiagnostics() {
   };
 }
 
+async function reconcilePendingReviewerNotifications(limit = 200) {
+  const pendingWorkers = (await storage.listWorkers(limit)).filter(
+    (worker) => reviewableWorker(worker) && !(worker.review && worker.review.notificationSentAt)
+  );
+  const notifications = [];
+
+  for (const worker of pendingWorkers) {
+    notifications.push(await notifyReviewer(worker));
+  }
+
+  return {
+    count: notifications.length,
+    notifications
+  };
+}
+
 async function processReviewerMessage(phone, message) {
   if (rememberReviewerMessage(message.id || '')) return;
 
@@ -1121,5 +1221,6 @@ module.exports = {
   rejectWorker,
   notifyReviewerForWorker,
   resendPendingReviewerAlerts,
+  reconcilePendingReviewerNotifications,
   getWorkerFlowDiagnostics
 };

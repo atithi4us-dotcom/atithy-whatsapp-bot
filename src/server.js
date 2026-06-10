@@ -14,6 +14,7 @@ const {
   rejectWorker,
   notifyReviewerForWorker,
   resendPendingReviewerAlerts,
+  reconcilePendingReviewerNotifications,
   getWorkerFlowDiagnostics
 } = require('./services/workerFlow');
 const {
@@ -370,9 +371,13 @@ app.post('/admin/api/workers/:phone/request-clear-aadhaar-back', requireAdmin, a
 async function start() {
   try {
     await initializeStorage();
+    const retryResult = await reconcilePendingReviewerNotifications();
+    if (retryResult.count) {
+      console.log(`[STARTUP] Retried ${retryResult.count} pending reviewer notification(s)`);
+    }
   } catch (error) {
     startupError = summarizeError(error);
-    console.error('[STARTUP] Firebase initialization failed', JSON.stringify(startupError));
+    console.error('[STARTUP] Initialization failed', JSON.stringify(startupError));
   }
 
   app.listen(config.port, () => {
