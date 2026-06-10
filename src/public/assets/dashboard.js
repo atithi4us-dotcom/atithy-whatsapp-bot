@@ -519,6 +519,7 @@ function renderReviewPanel(worker, aadhaarFrontUrl, aadhaarBackUrl, legacyAadhaa
       </div>
 
       <div class="actions">
+        <button class="ghost" data-action="notifyReviewer">Notify reviewer</button>
         <button data-action="approve">Approve Aadhaar</button>
         <button class="danger" data-action="reject">Reject Aadhaar</button>
         <button class="ghost" data-action="clearFront">Request clear front</button>
@@ -616,6 +617,7 @@ detailsEl.addEventListener('click', async (event) => {
   if (!button) return;
   const actionMap = {
     approve: 'approve-aadhaar',
+    notifyReviewer: 'notify-reviewer',
     reject: 'reject-aadhaar',
     clearFront: 'request-clear-aadhaar-front',
     clearBack: 'request-clear-aadhaar-back',

@@ -8,7 +8,14 @@ const {
   getBucket,
   getStorageDiagnostics
 } = require('./services/storage');
-const { processIncomingMessage, approveWorker, rejectWorker } = require('./services/workerFlow');
+const {
+  processIncomingMessage,
+  approveWorker,
+  rejectWorker,
+  notifyReviewerForWorker,
+  resendPendingReviewerAlerts,
+  getWorkerFlowDiagnostics
+} = require('./services/workerFlow');
 const {
   createSession,
   parseCookies,
@@ -79,6 +86,7 @@ app.get('/health', (_req, res) => {
     lastInboundMessage,
     lastMessageStatus,
     lastReviewerDeliveryFailure,
+    lastReviewerNotification: getWorkerFlowDiagnostics().lastReviewerNotification,
     lastHistoryWrite: getStorageDiagnostics().lastHistoryWrite
   });
 });
@@ -252,6 +260,16 @@ app.get('/admin/api/workers/:phone', requireAdmin, async (req, res) => {
   return res.json({ worker });
 });
 
+app.post('/admin/api/reviewer/resend-pending-alerts', requireAdmin, async (_req, res) => {
+  try {
+    setNoCacheHeaders(res);
+    const result = await resendPendingReviewerAlerts();
+    return res.json({ ok: true, result });
+  } catch (error) {
+    return res.status(400).json({ error: error.message });
+  }
+});
+
 async function streamAadhaarFile(req, res, side) {
   try {
     const worker = await getWorker(req.params.phone.replace(/\D/g, ''));
@@ -293,6 +311,16 @@ app.post('/admin/api/workers/:phone/approve-aadhaar', requireAdmin, async (req, 
   try {
     setNoCacheHeaders(res);
     const result = await approveWorker(req.params.phone.replace(/\D/g, ''), req.admin.username);
+    return res.json({ ok: true, result });
+  } catch (error) {
+    return res.status(400).json({ error: error.message });
+  }
+});
+
+app.post('/admin/api/workers/:phone/notify-reviewer', requireAdmin, async (req, res) => {
+  try {
+    setNoCacheHeaders(res);
+    const result = await notifyReviewerForWorker(req.params.phone.replace(/\D/g, ''));
     return res.json({ ok: true, result });
   } catch (error) {
     return res.status(400).json({ error: error.message });

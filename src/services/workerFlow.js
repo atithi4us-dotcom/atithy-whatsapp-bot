@@ -44,6 +44,7 @@ const BUTTONS = {
 };
 
 const recentReviewerMessageIds = new Set();
+let lastReviewerNotification = null;
 
 const JOB_ACCEPTANCE_VIDEO_PATHS = {
   'hi-IN': path.join(__dirname, '../../videos/whatsapp/job-accept-hi.mp4'),
@@ -472,8 +473,9 @@ async function sendReviewerReviewCards(worker) {
 }
 
 async function notifyReviewer(worker) {
+  const attemptedAt = now();
   try {
-    await meta.sendTemplate(
+    const response = await meta.sendTemplate(
       config.reviewerPhone,
       config.reviewerTemplateName,
       config.reviewerTemplateLanguage,
@@ -484,14 +486,41 @@ async function notifyReviewer(worker) {
       ],
       'show_pending_reviews'
     );
+    const messageId =
+      response && Array.isArray(response.messages) && response.messages[0]
+        ? response.messages[0].id || null
+        : null;
+    lastReviewerNotification = {
+      ok: true,
+      attemptedAt,
+      sentAt: now(),
+      workerPhone: worker.phone,
+      reviewerPhone: config.reviewerPhone,
+      template: config.reviewerTemplateName,
+      messageId
+    };
     await storage.appendHistory(worker.phone, {
       type: 'system',
       event: 'reviewer_template_alert_sent',
       reviewerPhone: config.reviewerPhone,
-      template: config.reviewerTemplateName
+      template: config.reviewerTemplateName,
+      messageId
     });
+    return lastReviewerNotification;
   } catch (error) {
     const response = error.response && error.response.data ? error.response.data : null;
+    const errorMessage =
+      response && response.error && response.error.message ? response.error.message : error.message;
+    lastReviewerNotification = {
+      ok: false,
+      attemptedAt,
+      failedAt: now(),
+      workerPhone: worker.phone,
+      reviewerPhone: config.reviewerPhone,
+      template: config.reviewerTemplateName,
+      error: errorMessage,
+      response
+    };
     console.error(
       '[REVIEWER_TEMPLATE_ERROR]',
       JSON.stringify({
@@ -507,8 +536,9 @@ async function notifyReviewer(worker) {
       event: 'reviewer_template_alert_failed',
       reviewerPhone: config.reviewerPhone,
       template: config.reviewerTemplateName,
-      error: response && response.error && response.error.message ? response.error.message : error.message
+      error: errorMessage
     });
+    return lastReviewerNotification;
   }
 }
 
@@ -1024,6 +1054,35 @@ async function sendPendingReviewSummary(phone) {
   }
 }
 
+async function notifyReviewerForWorker(phone) {
+  const worker = await storage.getWorker(phone);
+  if (!worker) throw new Error('Worker not found');
+  if (!reviewableWorker(worker)) {
+    throw new Error('Worker does not have a pending Aadhaar review.');
+  }
+  const notification = await notifyReviewer(worker);
+  return { workerPhone: worker.phone, notification };
+}
+
+async function resendPendingReviewerAlerts(limit = 50) {
+  const pendingWorkers = (await storage.listWorkers(limit)).filter(reviewableWorker);
+  const notifications = [];
+  for (const worker of pendingWorkers) {
+    notifications.push(await notifyReviewer(worker));
+  }
+  return {
+    reviewerPhone: config.reviewerPhone,
+    count: notifications.length,
+    notifications
+  };
+}
+
+function getWorkerFlowDiagnostics() {
+  return {
+    lastReviewerNotification
+  };
+}
+
 async function processReviewerMessage(phone, message) {
   if (rememberReviewerMessage(message.id || '')) return;
 
@@ -1059,5 +1118,8 @@ module.exports = {
   STATUS,
   processIncomingMessage,
   approveWorker,
-  rejectWorker
+  rejectWorker,
+  notifyReviewerForWorker,
+  resendPendingReviewerAlerts,
+  getWorkerFlowDiagnostics
 };
