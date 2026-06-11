@@ -1,6 +1,7 @@
 const workersEl = document.getElementById('workers');
 const detailsEl = document.getElementById('details');
 const refreshBtn = document.getElementById('refreshBtn');
+const dashboardStatsEl = document.getElementById('dashboardStats');
 const REFRESH_INTERVAL_MS = 6000;
 const SCROLL_BOTTOM_THRESHOLD_PX = 48;
 
@@ -433,6 +434,39 @@ function getWorkerFromList(phone) {
   return workers.find((worker) => worker.phone === phone) || null;
 }
 
+function formatCount(value) {
+  const number = Number(value || 0);
+  return Number.isFinite(number) ? number.toLocaleString('en-IN') : '0';
+}
+
+function renderDashboardStats(stats = {}) {
+  if (!dashboardStatsEl) return;
+  const cards = [
+    ['pendingVerification', 'Pending verification'],
+    ['totalCompleted', 'Total completed'],
+    ['totalMalesCompleted', 'Total males completed'],
+    ['totalFemalesCompleted', 'Total females completed'],
+    ['completedToday', 'Completed today'],
+    ['completedYesterday', 'Completed yesterday'],
+    ['conversationsStartedToday', 'Conversations started today'],
+    ['conversationsStartedIn7Days', 'Conversations started in 7 days'],
+    ['conversationsStartedIn30Days', 'Conversations started in 30 days'],
+    ['completedIn7Days', 'Completed in 7 days'],
+    ['completedIn30Days', 'Completed in 30 days']
+  ];
+
+  dashboardStatsEl.innerHTML = cards
+    .map(
+      ([key, label]) => `
+        <article class="stat-card">
+          <strong>${escapeHtml(formatCount(stats[key]))}</strong>
+          <span>${escapeHtml(label)}</span>
+        </article>
+      `
+    )
+    .join('');
+}
+
 function scrollChatToLatest() {
   const thread = detailsEl.querySelector('.chat-thread');
   if (!thread) return;
@@ -589,7 +623,11 @@ async function loadWorkers() {
   if (isLoading) return;
   isLoading = true;
   try {
-    const data = await fetchJson('/admin/api/workers');
+    const [statsData, data] = await Promise.all([
+      fetchJson('/admin/api/dashboard-stats'),
+      fetchJson('/admin/api/workers')
+    ]);
+    renderDashboardStats(statsData.stats || {});
     workers = data.workers || [];
     if (selectedPhone && !workers.some((worker) => worker.phone === selectedPhone)) {
       selectedPhone = '';

@@ -4,6 +4,8 @@ const config = require('../config');
 let app;
 let db;
 let lastHistoryWrite = null;
+let dashboardStatsCache = null;
+const DASHBOARD_STATS_CACHE_MS = 30000;
 
 function getFirebaseApp() {
   if (app) return app;
@@ -94,6 +96,124 @@ async function listWorkers(limit = 100) {
     .limit(limit)
     .get();
   return snapshot.docs.map((doc) => ({ phone: doc.id, ...normalizeWorker(doc.data()) }));
+}
+
+function timestampToDate(value) {
+  if (!value) return null;
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
+  if (typeof value === 'number') {
+    const date = new Date(value < 10000000000 ? value * 1000 : value);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+  if (typeof value === 'object') {
+    if (typeof value.toDate === 'function') {
+      const date = value.toDate();
+      return date instanceof Date && !Number.isNaN(date.getTime()) ? date : null;
+    }
+    const seconds = value.seconds || value._seconds;
+    if (typeof seconds === 'number') {
+      const millis = seconds * 1000 + Math.floor((value.nanoseconds || value._nanoseconds || 0) / 1000000);
+      const date = new Date(millis);
+      return Number.isNaN(date.getTime()) ? null : date;
+    }
+  }
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? null : new Date(parsed);
+}
+
+function startOfKolkataDay(date, dayOffset = 0) {
+  const offsetMs = 5.5 * 60 * 60 * 1000;
+  const shifted = new Date(date.getTime() + offsetMs);
+  shifted.setUTCHours(0, 0, 0, 0);
+  shifted.setUTCDate(shifted.getUTCDate() + dayOffset);
+  return new Date(shifted.getTime() - offsetMs);
+}
+
+function getCompletedAt(worker) {
+  return (
+    timestampToDate(worker.approvedAt) ||
+    timestampToDate(worker.activatedAt) ||
+    timestampToDate(worker.review && worker.review.reviewedAt)
+  );
+}
+
+function getStartedAt(worker) {
+  const directDate = timestampToDate(worker.createdAt);
+  if (directDate) return directDate;
+
+  return normalizeHistoryValue(worker.history)
+    .map((event) => timestampToDate(event && event.at))
+    .filter(Boolean)
+    .sort((left, right) => left.getTime() - right.getTime())[0] || null;
+}
+
+function isWithin(date, start, end) {
+  return Boolean(date && date >= start && (!end || date < end));
+}
+
+async function getDashboardStats() {
+  if (
+    dashboardStatsCache &&
+    dashboardStatsCache.expiresAt > Date.now()
+  ) {
+    return dashboardStatsCache.stats;
+  }
+
+  const snapshot = await getFirestore().collection('whatsappWorkerOnboarding').get();
+  const nowDate = new Date();
+  const todayStart = startOfKolkataDay(nowDate);
+  const tomorrowStart = startOfKolkataDay(nowDate, 1);
+  const yesterdayStart = startOfKolkataDay(nowDate, -1);
+  const sevenDaysAgo = new Date(nowDate.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const thirtyDaysAgo = new Date(nowDate.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+  const stats = {
+    pendingVerification: 0,
+    totalCompleted: 0,
+    totalMalesCompleted: 0,
+    totalFemalesCompleted: 0,
+    completedToday: 0,
+    completedYesterday: 0,
+    conversationsStartedToday: 0,
+    conversationsStartedIn7Days: 0,
+    conversationsStartedIn30Days: 0,
+    completedIn7Days: 0,
+    completedIn30Days: 0,
+    generatedAt: nowDate.toISOString()
+  };
+
+  snapshot.docs.forEach((doc) => {
+    const worker = normalizeWorker(doc.data()) || {};
+    const status = String(worker.status || '').toLowerCase();
+    const gender = String(worker.gender || '').toLowerCase();
+    const completedAt = getCompletedAt(worker);
+    const startedAt = getStartedAt(worker);
+
+    if (status === 'verification_pending') {
+      stats.pendingVerification += 1;
+    }
+
+    if (status === 'approved') {
+      stats.totalCompleted += 1;
+      if (gender === 'male') stats.totalMalesCompleted += 1;
+      if (gender === 'female') stats.totalFemalesCompleted += 1;
+      if (isWithin(completedAt, todayStart, tomorrowStart)) stats.completedToday += 1;
+      if (isWithin(completedAt, yesterdayStart, todayStart)) stats.completedYesterday += 1;
+      if (isWithin(completedAt, sevenDaysAgo)) stats.completedIn7Days += 1;
+      if (isWithin(completedAt, thirtyDaysAgo)) stats.completedIn30Days += 1;
+    }
+
+    if (isWithin(startedAt, todayStart, tomorrowStart)) stats.conversationsStartedToday += 1;
+    if (isWithin(startedAt, sevenDaysAgo)) stats.conversationsStartedIn7Days += 1;
+    if (isWithin(startedAt, thirtyDaysAgo)) stats.conversationsStartedIn30Days += 1;
+  });
+
+  dashboardStatsCache = {
+    expiresAt: Date.now() + DASHBOARD_STATS_CACHE_MS,
+    stats
+  };
+
+  return stats;
 }
 
 async function appendHistory(phone, event) {
@@ -211,6 +331,7 @@ module.exports = {
   getWorker,
   saveWorker,
   listWorkers,
+  getDashboardStats,
   appendHistory,
   claimInboundMessage,
   uploadAadhaar

@@ -6,6 +6,7 @@ const {
   listWorkers,
   getWorker,
   getBucket,
+  getDashboardStats,
   getStorageDiagnostics
 } = require('./services/storage');
 const {
@@ -256,6 +257,11 @@ app.get('/admin', requireAdmin, (_req, res) => {
 app.get('/admin/api/workers', requireAdmin, async (_req, res) => {
   setNoCacheHeaders(res);
   res.json({ workers: await listWorkers(200) });
+});
+
+app.get('/admin/api/dashboard-stats', requireAdmin, async (_req, res) => {
+  setNoCacheHeaders(res);
+  res.json({ stats: await getDashboardStats() });
 });
 
 app.get('/admin/api/workers/:phone', requireAdmin, async (req, res) => {

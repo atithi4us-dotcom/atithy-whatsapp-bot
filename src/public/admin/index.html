@@ -16,17 +16,20 @@
         <button class="ghost" type="submit">Logout</button>
       </form>
     </header>
-    <main class="layout">
-      <section class="panel">
-        <div class="panel-head">
-          <h2>Workers</h2>
-          <button id="refreshBtn" class="ghost">Refresh</button>
-        </div>
-        <div id="workers" class="worker-list"></div>
-      </section>
-      <section class="panel detail-panel">
-        <div id="details" class="empty">Select a worker to review Aadhaar status.</div>
-      </section>
+    <main class="dashboard-shell">
+      <section id="dashboardStats" class="stats-grid" aria-label="Dashboard summary"></section>
+      <div class="layout">
+        <section class="panel">
+          <div class="panel-head">
+            <h2>Workers</h2>
+            <button id="refreshBtn" class="ghost">Refresh</button>
+          </div>
+          <div id="workers" class="worker-list"></div>
+        </section>
+        <section class="panel detail-panel">
+          <div id="details" class="empty">Select a worker to review Aadhaar status.</div>
+        </section>
+      </div>
     </main>
     <script src="/admin/assets/dashboard.js"></script>
   </body>

@@ -116,6 +116,34 @@ function isResetCommand(text) {
   return /^(\/reset|reset|restart|start over)$/i.test(text);
 }
 
+function localeFromAdPrefill(text) {
+  const firstLine = String(text || '')
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find(Boolean);
+  return localeFromLanguageSelection('', firstLine || '');
+}
+
+function getMessageAttribution(message) {
+  if (!message || !message.referral) return null;
+
+  const referral = message.referral;
+  return {
+    source: 'meta_ads_whatsapp',
+    capturedAt: now(),
+    sourceId: referral.source_id || null,
+    sourceType: referral.source_type || null,
+    sourceUrl: referral.source_url || null,
+    headline: referral.headline || null,
+    body: referral.body || null,
+    mediaType: referral.media_type || null,
+    imageUrl: referral.image_url || null,
+    videoUrl: referral.video_url || null,
+    thumbnailUrl: referral.thumbnail_url || null,
+    ctwaClid: referral.ctwa_clid || null
+  };
+}
+
 function buildDistrictId(district) {
   return `district_${district.toLowerCase().replace(/[^a-z0-9]+/g, '_')}`;
 }
@@ -760,8 +788,37 @@ async function processWorkerMessage(phone, message) {
 
   const replyId = getReplyId(message);
   const text = getText(message);
+  const attribution = getMessageAttribution(message);
+
+  if (attribution) {
+    worker = await updateWorker(phone, {
+      source: 'meta_ads_whatsapp',
+      campaignAttribution: {
+        ...((worker && worker.campaignAttribution) || {}),
+        first:
+          worker && worker.campaignAttribution && worker.campaignAttribution.first
+            ? worker.campaignAttribution.first
+            : attribution,
+        latest: attribution
+      }
+    });
+    await storage.appendHistory(phone, {
+      type: 'system',
+      event: 'meta_ad_referral_captured',
+      attribution
+    });
+  }
 
   if (isResetCommand(text)) {
+    if (worker.status === STATUS.APPROVED) {
+      await sendWorkerText(
+        phone,
+        textFor(localeForWorker(worker), 'approvedAlready'),
+        'approved_already_sent'
+      );
+      return;
+    }
+
     await updateWorker(phone, {
       status: STATUS.AWAITING_LANGUAGE,
       language: null,
@@ -788,7 +845,7 @@ async function processWorkerMessage(phone, message) {
 
   switch (worker.status) {
     case STATUS.AWAITING_LANGUAGE: {
-      const locale = localeFromLanguageSelection(replyId, text);
+      const locale = localeFromLanguageSelection(replyId, text) || localeFromAdPrefill(text);
       if (!locale) {
         if (isRecent(worker.languagePromptSentAt)) return;
         await updateWorker(phone, { languagePromptSentAt: now() });
