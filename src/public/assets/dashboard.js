@@ -2,6 +2,7 @@ const workersEl = document.getElementById('workers');
 const detailsEl = document.getElementById('details');
 const refreshBtn = document.getElementById('refreshBtn');
 const REFRESH_INTERVAL_MS = 6000;
+const SCROLL_BOTTOM_THRESHOLD_PX = 48;
 
 let workers = [];
 let selectedPhone = '';
@@ -459,6 +460,7 @@ async function fetchJson(url, options) {
 }
 
 function renderWorkers() {
+  const scrollTop = workersEl.scrollTop;
   workersEl.innerHTML = workers
     .map(
       (worker) => `
@@ -479,6 +481,7 @@ function renderWorkers() {
       `
     )
     .join('');
+  workersEl.scrollTop = scrollTop;
 }
 
 function renderReviewPanel(worker, aadhaarFrontUrl, aadhaarBackUrl, legacyAadhaarUrl) {
@@ -530,13 +533,22 @@ function renderReviewPanel(worker, aadhaarFrontUrl, aadhaarBackUrl, legacyAadhaa
   `;
 }
 
-function renderDetails(worker) {
+function renderDetails(worker, options = {}) {
   const legacyAadhaarUrl =
     worker.aadhaar && worker.aadhaar.storagePath
       ? `/admin/api/workers/${encodeURIComponent(worker.phone)}/aadhaar`
       : '';
   const aadhaarFrontUrl = aadhaarSideUrl(worker, 'front');
   const aadhaarBackUrl = aadhaarSideUrl(worker, 'back');
+  const existingConversation = detailsEl.querySelector('.conversation');
+  const sameWorker = existingConversation && existingConversation.dataset.phone === worker.phone;
+  const previousThread = sameWorker ? detailsEl.querySelector('.chat-thread') : null;
+  const previousReview = sameWorker ? detailsEl.querySelector('.review-panel') : null;
+  const wasNearBottom =
+    previousThread &&
+    previousThread.scrollHeight - previousThread.scrollTop - previousThread.clientHeight <= SCROLL_BOTTOM_THRESHOLD_PX;
+  const previousThreadTop = previousThread ? previousThread.scrollTop : 0;
+  const previousReviewTop = previousReview ? previousReview.scrollTop : 0;
 
   detailsEl.innerHTML = `
     <div class="conversation" data-phone="${escapeHtml(worker.phone)}">
@@ -554,7 +566,23 @@ function renderDetails(worker) {
       ${renderReviewPanel(worker, aadhaarFrontUrl, aadhaarBackUrl, legacyAadhaarUrl)}
     </div>
   `;
-  scrollChatToLatest();
+
+  const shouldScrollToLatest = options.scrollToLatest || !sameWorker || wasNearBottom;
+  if (shouldScrollToLatest) {
+    scrollChatToLatest();
+    if (sameWorker && options.preserveScroll) {
+      const reviewPanel = detailsEl.querySelector('.review-panel');
+      if (reviewPanel) reviewPanel.scrollTop = previousReviewTop;
+    }
+    return;
+  }
+
+  if (sameWorker && options.preserveScroll) {
+    const thread = detailsEl.querySelector('.chat-thread');
+    const reviewPanel = detailsEl.querySelector('.review-panel');
+    if (thread) thread.scrollTop = previousThreadTop;
+    if (reviewPanel) reviewPanel.scrollTop = previousReviewTop;
+  }
 }
 
 async function loadWorkers() {
@@ -577,12 +605,12 @@ async function loadWorkers() {
     if (selectedPhone) {
       const listWorker = getWorkerFromList(selectedPhone);
       if (listWorker) {
-        renderDetails(listWorker);
+        renderDetails(listWorker, { preserveScroll: true });
       }
       try {
         const selected = await fetchJson(`/admin/api/workers/${selectedPhone}`);
         if (selected && selected.worker) {
-          renderDetails(selected.worker);
+          renderDetails(selected.worker, { preserveScroll: true });
         }
       } catch (_error) {
         // Keep showing list payload if detail endpoint is temporarily unavailable.
@@ -600,12 +628,12 @@ workersEl.addEventListener('click', async (event) => {
   renderWorkers();
   const listWorker = getWorkerFromList(selectedPhone);
   if (listWorker) {
-    renderDetails(listWorker);
+    renderDetails(listWorker, { scrollToLatest: true });
   }
   try {
     const data = await fetchJson(`/admin/api/workers/${row.dataset.phone}`);
     if (data && data.worker) {
-      renderDetails(data.worker);
+      renderDetails(data.worker, { scrollToLatest: true });
     }
   } catch (_error) {
     // Keep showing list payload if detail endpoint is temporarily unavailable.
@@ -634,7 +662,7 @@ detailsEl.addEventListener('click', async (event) => {
     });
     await loadWorkers();
     const data = await fetchJson(`/admin/api/workers/${phone}`);
-    renderDetails(data.worker);
+    renderDetails(data.worker, { preserveScroll: true });
   } catch (error) {
     alert(error.message);
   } finally {
