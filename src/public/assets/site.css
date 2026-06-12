@@ -125,7 +125,7 @@ a {
   inset: 0;
   background:
     linear-gradient(90deg, rgba(10, 31, 24, 0.9) 0%, rgba(10, 31, 24, 0.68) 44%, rgba(10, 31, 24, 0.16) 100%),
-    url("/assets/images/athithy-guest-workers-hero.png") center right / cover no-repeat;
+    url("/assets/images/athithy-guest-workers-hero-1400.jpg") center right / cover no-repeat;
 }
 
 .hero-inner {
@@ -389,7 +389,7 @@ h3 {
   .hero::before {
     background:
       linear-gradient(180deg, rgba(10, 31, 24, 0.92) 0%, rgba(10, 31, 24, 0.72) 58%, rgba(10, 31, 24, 0.36) 100%),
-      url("/assets/images/athithy-guest-workers-hero.png") center / cover no-repeat;
+      url("/assets/images/athithy-guest-workers-hero-820.jpg") center / cover no-repeat;
   }
 
   .trust-inner,
@@ -414,5 +414,13 @@ h3 {
 
   .footer-inner {
     flex-direction: column;
+  }
+}
+
+@media (max-width: 520px) {
+  .hero::before {
+    background:
+      linear-gradient(180deg, rgba(10, 31, 24, 0.92) 0%, rgba(10, 31, 24, 0.72) 58%, rgba(10, 31, 24, 0.36) 100%),
+      url("/assets/images/athithy-guest-workers-hero-480.jpg") center / cover no-repeat;
   }
 }

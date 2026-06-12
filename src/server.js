@@ -59,7 +59,18 @@ app.use(
     }
   })
 );
-app.use('/assets', express.static(path.join(config.publicDir, 'assets')));
+app.use(
+  '/assets',
+  express.static(path.join(config.publicDir, 'assets'), {
+    setHeaders: (res, filePath) => {
+      if (/\.(?:jpg|jpeg|png|webp|avif|gif|svg|ico)$/i.test(filePath)) {
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        return;
+      }
+      res.setHeader('Cache-Control', 'public, max-age=3600');
+    }
+  })
+);
 
 function setNoCacheHeaders(res) {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
