@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://atithy-whatsapp-bot.onrender.com/sitemap.xml
+Sitemap: https://athithy.com/sitemap.xml
