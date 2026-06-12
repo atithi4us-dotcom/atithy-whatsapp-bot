@@ -23,6 +23,8 @@ const STATUS = {
   AWAITING_NAME: 'awaiting_name',
   AWAITING_GENDER: 'awaiting_gender',
   AWAITING_PLACE: 'awaiting_place',
+  AWAITING_APP_INSTALL: 'awaiting_app_install',
+  APP_INSTALL_CONFIRMED: 'app_install_confirmed',
   AWAITING_AADHAAR_CONSENT: 'awaiting_aadhaar_consent',
   AWAITING_AADHAAR: 'awaiting_aadhaar',
   AWAITING_AADHAAR_FRONT: 'awaiting_aadhaar_front',
@@ -422,6 +424,51 @@ async function sendPostApprovalGuidance(phone, worker) {
     locale,
     videoPath: path.basename(videoPath)
   });
+  await askAppInstall(phone);
+}
+
+async function sendAppInstallGuidance(phone, worker) {
+  try {
+    await sendPostApprovalGuidance(phone, worker);
+  } catch (error) {
+    console.error('[APP_INSTALL_GUIDANCE_ERROR]', JSON.stringify({ phone, error: error.message }));
+    await updateAppInstall(phone, {
+      status: 'video_failed',
+      error: error.message,
+      failedAt: now()
+    });
+    await storage.appendHistory(phone, {
+      type: 'system',
+      event: 'app_install_video_failed',
+      error: error.message
+    });
+    await askAppInstall(phone);
+  }
+}
+
+async function handleAppInstallConfirmation(phone, worker, text, replyId) {
+  const locale = localeForWorker(worker);
+
+  if (replyId === BUTTONS.APP_INSTALLED_YES || isAffirmativeText(text)) {
+    await updateAppInstall(phone, {
+      status: 'installed',
+      confirmedAt: now(),
+      confirmedBy: 'worker'
+    });
+    await updateWorker(phone, { status: STATUS.APP_INSTALL_CONFIRMED });
+    await storage.appendHistory(phone, { type: 'inbound', event: 'app_install_confirmed' });
+    await sendWorkerText(phone, textFor(locale, 'appReady'), 'app_ready_sent');
+    return;
+  }
+
+  if (replyId === BUTTONS.APP_INSTALLED_NO || isNegativeText(text)) {
+    await sendWorkerText(phone, textFor(locale, 'appInstallReminder'), 'app_install_reminder_sent');
+    await askAppInstall(phone);
+    await storage.appendHistory(phone, { type: 'outbound', event: 'app_install_prompt_resent' });
+    return;
+  }
+
+  await sendWorkerText(phone, textFor(locale, 'appInstallChooseOption'), 'app_install_choose_option_sent');
   await askAppInstall(phone);
 }
 
@@ -917,10 +964,14 @@ async function processWorkerMessage(phone, message) {
           await askPlace(phone);
           return;
         }
-        await updateWorker(phone, { currentPlace: district, status: STATUS.AWAITING_AADHAAR_CONSENT });
-        await askAadhaarConsent(phone);
+        const next = await updateWorker(phone, { currentPlace: district, status: STATUS.AWAITING_APP_INSTALL });
+        await sendAppInstallGuidance(phone, next);
         return;
       }
+    case STATUS.AWAITING_APP_INSTALL:
+      await handleAppInstallConfirmation(phone, worker, text, replyId);
+      return;
+
     case STATUS.AWAITING_AADHAAR_CONSENT:
       if (replyId === BUTTONS.CONSENT_NO || isNegativeText(text)) {
         await updateWorker(phone, {
@@ -1028,6 +1079,10 @@ async function processWorkerMessage(phone, message) {
         'app_install_choose_option_sent'
       );
       await askAppInstall(phone);
+      return;
+
+    case STATUS.APP_INSTALL_CONFIRMED:
+      await sendWorkerText(phone, textFor(localeForWorker(worker), 'appContinue'), 'app_continue_sent');
       return;
 
     case STATUS.REJECTED:
