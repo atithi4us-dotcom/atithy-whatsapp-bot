@@ -19,12 +19,17 @@
     <main class="dashboard-shell">
       <section id="dashboardStats" class="stats-grid" aria-label="Dashboard summary"></section>
       <div class="layout">
-        <section class="panel">
+        <section class="panel workers-panel">
           <div class="panel-head">
             <h2>Workers</h2>
             <button id="refreshBtn" class="ghost">Refresh</button>
           </div>
           <div id="workers" class="worker-list"></div>
+          <div class="pagination-bar" aria-label="Workers pagination">
+            <button id="prevWorkersBtn" class="ghost" type="button">Previous</button>
+            <span id="workersPageLabel">Page 1</span>
+            <button id="nextWorkersBtn" class="ghost" type="button">Next</button>
+          </div>
         </section>
         <section class="panel detail-panel">
           <div id="details" class="empty">Select a worker to review Aadhaar status.</div>

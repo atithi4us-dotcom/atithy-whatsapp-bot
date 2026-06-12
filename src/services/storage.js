@@ -98,6 +98,44 @@ async function listWorkers(limit = 100) {
   return snapshot.docs.map((doc) => ({ phone: doc.id, ...normalizeWorker(doc.data()) }));
 }
 
+function encodeWorkerCursor(doc) {
+  return Buffer.from(JSON.stringify({ phone: doc.id }), 'utf8').toString('base64url');
+}
+
+function decodeWorkerCursor(cursor) {
+  if (!cursor) return null;
+  try {
+    const parsed = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8'));
+    return parsed && typeof parsed.phone === 'string' ? parsed.phone.replace(/\D/g, '') : null;
+  } catch (_error) {
+    return null;
+  }
+}
+
+async function listWorkersPage({ limit = 50, cursor = '' } = {}) {
+  const pageSize = Math.min(Math.max(Number.parseInt(limit, 10) || 50, 1), 50);
+  const collection = getFirestore().collection('whatsappWorkerOnboarding');
+  let query = collection.orderBy('updatedAt', 'desc').limit(pageSize + 1);
+  const cursorPhone = decodeWorkerCursor(cursor);
+
+  if (cursorPhone) {
+    const cursorDoc = await collection.doc(cursorPhone).get();
+    if (cursorDoc.exists) {
+      query = query.startAfter(cursorDoc);
+    }
+  }
+
+  const snapshot = await query.get();
+  const pageDocs = snapshot.docs.slice(0, pageSize);
+
+  return {
+    workers: pageDocs.map((doc) => ({ phone: doc.id, ...normalizeWorker(doc.data()) })),
+    nextCursor: snapshot.docs.length > pageSize ? encodeWorkerCursor(pageDocs[pageDocs.length - 1]) : '',
+    hasMore: snapshot.docs.length > pageSize,
+    limit: pageSize
+  };
+}
+
 function timestampToDate(value) {
   if (!value) return null;
   if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
@@ -331,6 +369,7 @@ module.exports = {
   getWorker,
   saveWorker,
   listWorkers,
+  listWorkersPage,
   getDashboardStats,
   appendHistory,
   claimInboundMessage,

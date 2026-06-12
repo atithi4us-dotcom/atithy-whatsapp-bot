@@ -4,6 +4,7 @@ const config = require('./config');
 const {
   initializeStorage,
   listWorkers,
+  listWorkersPage,
   getWorker,
   getBucket,
   getDashboardStats,
@@ -254,9 +255,14 @@ app.get('/admin', requireAdmin, (_req, res) => {
   res.sendFile(path.join(config.publicDir, 'admin', 'index.html'));
 });
 
-app.get('/admin/api/workers', requireAdmin, async (_req, res) => {
+app.get('/admin/api/workers', requireAdmin, async (req, res) => {
   setNoCacheHeaders(res);
-  res.json({ workers: await listWorkers(200) });
+  res.json(
+    await listWorkersPage({
+      limit: req.query.limit,
+      cursor: req.query.cursor
+    })
+  );
 });
 
 app.get('/admin/api/dashboard-stats', requireAdmin, async (_req, res) => {

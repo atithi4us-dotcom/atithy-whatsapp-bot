@@ -1,14 +1,22 @@
 const workersEl = document.getElementById('workers');
 const detailsEl = document.getElementById('details');
 const refreshBtn = document.getElementById('refreshBtn');
+const prevWorkersBtn = document.getElementById('prevWorkersBtn');
+const nextWorkersBtn = document.getElementById('nextWorkersBtn');
+const workersPageLabel = document.getElementById('workersPageLabel');
 const dashboardStatsEl = document.getElementById('dashboardStats');
 const REFRESH_INTERVAL_MS = 6000;
 const SCROLL_BOTTOM_THRESHOLD_PX = 48;
+const WORKERS_PAGE_SIZE = 50;
 
 let workers = [];
 let selectedPhone = '';
 let isLoading = false;
 let refreshTimer = null;
+let workerPageIndex = 0;
+let workerPageCursors = [''];
+let nextWorkersCursor = '';
+let hasMoreWorkers = false;
 
 function fmt(value) {
   return value || '-';
@@ -493,8 +501,21 @@ async function fetchJson(url, options) {
   return data;
 }
 
-function renderWorkers() {
-  const scrollTop = workersEl.scrollTop;
+function renderWorkerPagination() {
+  workersPageLabel.textContent = `Page ${workerPageIndex + 1}`;
+  prevWorkersBtn.disabled = isLoading || workerPageIndex === 0;
+  nextWorkersBtn.disabled = isLoading || !hasMoreWorkers;
+}
+
+function workersUrl(cursor) {
+  const params = new URLSearchParams({ limit: String(WORKERS_PAGE_SIZE) });
+  if (cursor) params.set('cursor', cursor);
+  return `/admin/api/workers?${params.toString()}`;
+}
+
+function renderWorkers(options = {}) {
+  const preserveScroll = options.preserveScroll !== false;
+  const scrollTop = preserveScroll ? workersEl.scrollTop : 0;
   workersEl.innerHTML = workers
     .map(
       (worker) => `
@@ -619,15 +640,27 @@ function renderDetails(worker, options = {}) {
   }
 }
 
-async function loadWorkers() {
+async function loadWorkers(options = {}) {
   if (isLoading) return;
+  const pageIndex = Number.isInteger(options.pageIndex) ? options.pageIndex : workerPageIndex;
+  const cursor =
+    typeof options.cursor === 'string' ? options.cursor : workerPageCursors[pageIndex] || '';
   isLoading = true;
+  renderWorkerPagination();
   try {
     const [statsData, data] = await Promise.all([
       fetchJson('/admin/api/dashboard-stats'),
-      fetchJson('/admin/api/workers')
+      fetchJson(workersUrl(cursor))
     ]);
     renderDashboardStats(statsData.stats || {});
+    workerPageIndex = pageIndex;
+    workerPageCursors = workerPageCursors.slice(0, pageIndex + 1);
+    workerPageCursors[pageIndex] = cursor;
+    nextWorkersCursor = data.nextCursor || '';
+    hasMoreWorkers = Boolean(data.hasMore && nextWorkersCursor);
+    if (nextWorkersCursor) {
+      workerPageCursors[pageIndex + 1] = nextWorkersCursor;
+    }
     workers = data.workers || [];
     if (selectedPhone && !workers.some((worker) => worker.phone === selectedPhone)) {
       selectedPhone = '';
@@ -635,7 +668,7 @@ async function loadWorkers() {
     if (!selectedPhone && workers.length) {
       selectedPhone = workers[0].phone;
     }
-    renderWorkers();
+    renderWorkers({ preserveScroll: options.preserveListScroll !== false });
     if (!workers.length) {
       detailsEl.innerHTML = '<div class="empty">No workers yet.</div>';
       return;
@@ -656,6 +689,7 @@ async function loadWorkers() {
     }
   } finally {
     isLoading = false;
+    renderWorkerPagination();
   }
 }
 
@@ -708,7 +742,27 @@ detailsEl.addEventListener('click', async (event) => {
   }
 });
 
-refreshBtn.addEventListener('click', loadWorkers);
+refreshBtn.addEventListener('click', () => {
+  loadWorkers().catch((error) => alert(error.message));
+});
+
+prevWorkersBtn.addEventListener('click', () => {
+  if (workerPageIndex === 0) return;
+  loadWorkers({
+    pageIndex: workerPageIndex - 1,
+    cursor: workerPageCursors[workerPageIndex - 1] || '',
+    preserveListScroll: false
+  }).catch((error) => alert(error.message));
+});
+
+nextWorkersBtn.addEventListener('click', () => {
+  if (!hasMoreWorkers || !nextWorkersCursor) return;
+  loadWorkers({
+    pageIndex: workerPageIndex + 1,
+    cursor: nextWorkersCursor,
+    preserveListScroll: false
+  }).catch((error) => alert(error.message));
+});
 
 function ensureAutoRefresh() {
   if (refreshTimer) return;
