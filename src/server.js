@@ -59,6 +59,7 @@ app.use(
     }
   })
 );
+app.use('/assets', express.static(path.join(config.publicDir, 'assets')));
 
 function setNoCacheHeaders(res) {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
@@ -94,8 +95,44 @@ app.get('/health', (_req, res) => {
   });
 });
 
+app.get('/', (_req, res) => {
+  res.sendFile(path.join(config.publicDir, 'index.html'));
+});
+
 app.get('/privacy', (_req, res) => {
   res.sendFile(path.join(config.publicDir, 'privacy.html'));
+});
+
+app.get('/privacy-policy', (_req, res) => {
+  res.redirect(301, '/privacy');
+});
+
+app.get('/terms', (_req, res) => {
+  res.sendFile(path.join(config.publicDir, 'terms.html'));
+});
+
+app.get('/terms-of-service', (_req, res) => {
+  res.redirect(301, '/terms');
+});
+
+app.get('/support', (_req, res) => {
+  res.sendFile(path.join(config.publicDir, 'support.html'));
+});
+
+app.get('/contact', (_req, res) => {
+  res.redirect(301, '/support');
+});
+
+app.get('/data-deletion', (_req, res) => {
+  res.sendFile(path.join(config.publicDir, 'data-deletion.html'));
+});
+
+app.get('/robots.txt', (_req, res) => {
+  res.type('text/plain').sendFile(path.join(config.publicDir, 'robots.txt'));
+});
+
+app.get('/sitemap.xml', (_req, res) => {
+  res.type('application/xml').sendFile(path.join(config.publicDir, 'sitemap.xml'));
 });
 
 app.get('/webhook', (req, res) => {
