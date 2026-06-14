@@ -345,30 +345,24 @@ async function askPlace(phone) {
 
 async function askAadhaarConsent(phone) {
   const locale = localeForWorker(await storage.getWorker(phone));
-  const text = textFor(locale, 'aadhaarConsent');
-  await meta.sendButtons(phone, text, [
-    { id: BUTTONS.CONSENT_YES, title: textFor(locale, 'consentYes') },
-    { id: BUTTONS.CONSENT_NO, title: textFor(locale, 'consentNo') }
-  ]);
-  await storage.appendHistory(phone, { type: 'outbound', event: 'aadhaar_consent_prompt', text });
+  const text = textFor(locale, 'appContinue');
+  await sendWorkerText(phone, text, 'app_continue_sent');
+  await storage.appendHistory(phone, { type: 'system', event: 'aadhaar_prompt_suppressed_for_ads_safety' });
 }
 
 async function askAadhaar(phone) {
   const worker = await storage.getWorker(phone);
-  const text = textFor(localeForWorker(worker), 'aadhaarUpload');
-  await sendWorkerText(phone, text, 'aadhaar_upload_prompt');
+  const text = textFor(localeForWorker(worker), 'appContinue');
+  await sendWorkerText(phone, text, 'app_continue_sent');
+  await storage.appendHistory(phone, { type: 'system', event: 'aadhaar_upload_prompt_suppressed_for_ads_safety' });
 }
 
 async function askAadhaarFront(phone) {
-  const worker = await storage.getWorker(phone);
-  const text = textFor(localeForWorker(worker), 'aadhaarFrontUpload');
-  await sendWorkerText(phone, text, 'aadhaar_front_prompt');
+  await askAadhaar(phone);
 }
 
 async function askAadhaarBack(phone) {
-  const worker = await storage.getWorker(phone);
-  const text = textFor(localeForWorker(worker), 'aadhaarBackUpload');
-  await sendWorkerText(phone, text, 'aadhaar_back_prompt');
+  await askAadhaar(phone);
 }
 
 function jobAcceptanceVideoPathFor(locale) {
@@ -477,7 +471,7 @@ function getMediaFromMessage(message) {
     return {
       type: 'image',
       id: message.image.id,
-      filename: 'aadhaar.jpg',
+      filename: 'upload.jpg',
       caption: message.image.caption || ''
     };
   }
@@ -485,89 +479,33 @@ function getMediaFromMessage(message) {
     return {
       type: 'document',
       id: message.document.id,
-      filename: message.document.filename || 'aadhaar.pdf',
+      filename: message.document.filename || 'upload.pdf',
       caption: message.document.caption || ''
     };
   }
   return null;
 }
 
-async function sendReviewerAadhaarSide(worker, side, aadhaarSide) {
-  if (!aadhaarSide || !aadhaarSide.whatsappMediaId) {
-    return {
-      type: `review_${side}_media`,
-      ok: false,
-      skipped: true,
-      reason: 'missing_whatsapp_media_id'
-    };
-  }
-
-  const caption = [
-    `Aadhaar ${side}`,
-    '',
-    `Worker: ${worker.name || '-'}`,
-    `Phone: +${worker.phone}`,
-    `Gender: ${worker.gender || '-'}`,
-    `Place: ${worker.currentPlace || '-'}`
-  ].join('\n');
-
-  try {
-    let response;
-    if (aadhaarSide.whatsappMediaType === 'image') {
-      response = await meta.sendImageById(config.reviewerPhone, aadhaarSide.whatsappMediaId, caption);
-    } else {
-      response = await meta.sendDocumentById(
-        config.reviewerPhone,
-        aadhaarSide.whatsappMediaId,
-        aadhaarSide.filename || `aadhaar-${side}.pdf`,
-        caption
-      );
-    }
-    return {
-      type: `review_${side}_media`,
-      ok: true,
-      mediaId: aadhaarSide.whatsappMediaId,
-      response
-    };
-  } catch (error) {
-    console.error(
-      '[REVIEWER_AADHAAR_MEDIA_ERROR]',
-      JSON.stringify({ phone: worker.phone, side, error: error.message })
-    );
-    return {
-      type: `review_${side}_media`,
-      ok: false,
-      mediaId: aadhaarSide.whatsappMediaId,
-      error: error.message,
-      response: error.response ? error.response.data : null
-    };
-  }
-}
-
 async function sendReviewerReviewCards(worker) {
   const caption = [
-    'Atithy Aadhaar verification',
+    'Atithy worker review',
     '',
     `Worker: ${worker.name || '-'}`,
     `Phone: +${worker.phone}`,
     `Gender: ${worker.gender || '-'}`,
     `Place: ${worker.currentPlace || '-'}`,
     '',
-    'Aadhaar front and back are uploaded.',
-    'Please review in admin dashboard and choose an action.'
+    'Identity document collection is disabled for ads safety.',
+    'Please review the worker profile in the admin dashboard.'
   ].join('\n');
 
   const attempts = [];
   const textResponse = await meta.sendText(config.reviewerPhone, caption);
   attempts.push({ type: 'review_summary_text', ok: true, response: textResponse });
 
-  attempts.push(await sendReviewerAadhaarSide(worker, 'front', worker.aadhaar && worker.aadhaar.front));
-  attempts.push(await sendReviewerAadhaarSide(worker, 'back', worker.aadhaar && worker.aadhaar.back));
-
-  const buttonsResponse = await meta.sendButtons(config.reviewerPhone, `Aadhaar action for +${worker.phone}`, [
+  const buttonsResponse = await meta.sendButtons(config.reviewerPhone, `Worker action for +${worker.phone}`, [
     { id: `approve_${worker.phone}`, title: 'Approve' },
-    { id: `reject_${worker.phone}`, title: 'Reject' },
-    { id: `clear_both_${worker.phone}`, title: 'Need clear copy' }
+    { id: `reject_${worker.phone}`, title: 'Reject' }
   ]);
   attempts.push({ type: 'review_action_buttons', ok: true, response: buttonsResponse });
 
@@ -699,115 +637,6 @@ async function notifyReviewer(worker) {
     });
     return lastReviewerNotification;
   }
-}
-
-function legacyAadhaarFrom(worker) {
-  const aadhaar = worker && worker.aadhaar;
-  if (aadhaar && aadhaar.storagePath) return { legacy: aadhaar };
-  return aadhaar || {};
-}
-
-function uploadedAadhaarSide(stored, incomingMedia) {
-  return {
-    ...stored,
-    whatsappMediaId: incomingMedia.id,
-    whatsappMediaType: incomingMedia.type
-  };
-}
-
-async function markAadhaarPending(phone, worker, aadhaar) {
-  const next = await updateWorker(phone, {
-    status: STATUS.VERIFICATION_PENDING,
-    aadhaar,
-    aadhaarRequest: null,
-    review: {
-      status: 'pending',
-      note: null
-    }
-  });
-
-  await notifyReviewer(next);
-  await sendWorkerText(
-    phone,
-    textFor(localeForWorker(next), 'aadhaarBothReceived'),
-    'aadhaar_both_received_sent'
-  );
-  return next;
-}
-
-async function handleAadhaarSideUpload(phone, message, worker, side) {
-  const incomingMedia = getMediaFromMessage(message);
-  if (!incomingMedia) {
-    const messageKey = side === 'front' ? 'aadhaarFrontUpload' : 'aadhaarBackUpload';
-    const event = side === 'front' ? 'aadhaar_front_prompt' : 'aadhaar_back_prompt';
-    await sendWorkerText(phone, textFor(localeForWorker(worker), messageKey), event);
-    return;
-  }
-
-  const downloaded = await meta.downloadMedia(incomingMedia.id);
-  const stored = await storage.uploadAadhaar(phone, {
-    ...downloaded,
-    side,
-    filename: incomingMedia.filename
-  });
-
-  const aadhaar = {
-    ...legacyAadhaarFrom(worker),
-    [side]: uploadedAadhaarSide(stored, incomingMedia)
-  };
-  const requestSide = worker && worker.aadhaarRequest && worker.aadhaarRequest.side;
-
-  if (side === 'front') {
-    if (requestSide === 'front' && aadhaar.back && aadhaar.back.storagePath) {
-      await storage.appendHistory(phone, {
-        type: 'inbound',
-        event: 'aadhaar_front_uploaded',
-        storagePath: stored.storagePath
-      });
-      return markAadhaarPending(phone, worker, aadhaar);
-    }
-
-    const next = await updateWorker(phone, {
-      status: STATUS.AWAITING_AADHAAR_BACK,
-      aadhaar,
-      aadhaarRequest: requestSide === 'both' ? worker.aadhaarRequest : null,
-      review: {
-        status: 'not_started',
-        note: null
-      }
-    });
-
-    await storage.appendHistory(phone, {
-      type: 'inbound',
-      event: 'aadhaar_front_uploaded',
-      storagePath: stored.storagePath
-    });
-    await askAadhaarBack(phone);
-    return next;
-  }
-
-  const next = await updateWorker(phone, {
-    status: STATUS.VERIFICATION_PENDING,
-    aadhaar,
-    aadhaarRequest: null,
-    review: {
-      status: 'pending',
-      note: null
-    }
-  });
-
-  await storage.appendHistory(phone, {
-    type: 'inbound',
-    event: 'aadhaar_back_uploaded',
-    storagePath: stored.storagePath
-  });
-  await notifyReviewer(next);
-  await sendWorkerText(
-    phone,
-    textFor(localeForWorker(next), 'aadhaarBothReceived'),
-    'aadhaar_both_received_sent'
-  );
-  return next;
 }
 
 async function processWorkerMessage(phone, message) {
@@ -973,57 +802,38 @@ async function processWorkerMessage(phone, message) {
       return;
 
     case STATUS.AWAITING_AADHAAR_CONSENT:
-      if (replyId === BUTTONS.CONSENT_NO || isNegativeText(text)) {
-        await updateWorker(phone, {
-          status: STATUS.REJECTED,
-          aadhaarConsent: {
-            accepted: false,
-            version: 'aadhaar-consent-v1',
-            source: 'whatsapp',
-            respondedAt: now()
-          }
-        });
-        await sendWorkerText(
-          phone,
-          textFor(localeForWorker(worker), 'aadhaarRequired'),
-          'aadhaar_required_sent'
-        );
-        return;
-      }
-      if (replyId !== BUTTONS.CONSENT_YES && !isAffirmativeText(text)) {
-        await askAadhaarConsent(phone);
-        return;
-      }
       await updateWorker(phone, {
-        status: STATUS.AWAITING_AADHAAR_FRONT,
+        status: STATUS.APP_INSTALL_CONFIRMED,
         aadhaarRequest: null,
         aadhaarConsent: {
-          accepted: true,
-          version: 'aadhaar-consent-v1',
+          accepted: false,
+          version: 'aadhaar-disabled-v1',
           source: 'whatsapp',
-          acceptedAt: now()
+          disabledAt: now()
         }
       });
-      await askAadhaarFront(phone);
+      await storage.appendHistory(phone, { type: 'system', event: 'aadhaar_collection_disabled_for_ads_safety' });
+      await sendWorkerText(phone, textFor(localeForWorker(worker), 'appContinue'), 'app_continue_sent');
       return;
 
     case STATUS.AWAITING_AADHAAR:
-      worker = await storage.getWorker(phone);
-      await handleAadhaarSideUpload(phone, message, worker, 'front');
-      return;
-
     case STATUS.AWAITING_AADHAAR_FRONT:
-      worker = await storage.getWorker(phone);
-      await handleAadhaarSideUpload(phone, message, worker, 'front');
-      return;
-
     case STATUS.AWAITING_AADHAAR_BACK:
-      worker = await storage.getWorker(phone);
-      await handleAadhaarSideUpload(phone, message, worker, 'back');
+      await updateWorker(phone, {
+        status: STATUS.APP_INSTALL_CONFIRMED,
+        aadhaarRequest: null
+      });
+      await storage.appendHistory(phone, { type: 'system', event: 'aadhaar_upload_ignored_for_ads_safety' });
+      await sendWorkerText(phone, textFor(localeForWorker(worker), 'appContinue'), 'app_continue_sent');
       return;
 
     case STATUS.VERIFICATION_PENDING:
-      await sendWorkerText(phone, textFor(localeForWorker(worker), 'aadhaarPending'), 'aadhaar_pending_sent');
+      await updateWorker(phone, {
+        status: STATUS.APP_INSTALL_CONFIRMED,
+        aadhaarRequest: null
+      });
+      await storage.appendHistory(phone, { type: 'system', event: 'aadhaar_verification_bypassed_for_ads_safety' });
+      await sendWorkerText(phone, textFor(localeForWorker(worker), 'appContinue'), 'app_continue_sent');
       return;
 
     case STATUS.APPROVED:
@@ -1096,21 +906,9 @@ async function processWorkerMessage(phone, message) {
   }
 }
 
-function hasReviewableAadhaar(worker) {
-  const aadhaar = worker && worker.aadhaar;
-  return Boolean(
-    aadhaar &&
-      (aadhaar.storagePath ||
-        (aadhaar.front && aadhaar.front.storagePath && aadhaar.back && aadhaar.back.storagePath))
-  );
-}
-
 async function approveWorker(phone, reviewedBy = 'reviewer') {
   const worker = await storage.getWorker(phone);
   if (!worker) throw new Error('Worker not found');
-  if (!hasReviewableAadhaar(worker)) {
-    throw new Error('Aadhaar front and back must be uploaded before approval.');
-  }
 
   const approvedAt = now();
   const next = await updateWorker(phone, {
@@ -1134,7 +932,7 @@ async function approveWorker(phone, reviewedBy = 'reviewer') {
 
   await storage.appendHistory(phone, {
     type: 'system',
-    event: 'aadhaar_approved',
+    event: 'worker_approved',
     reviewedBy,
     syncResult
   });
@@ -1162,52 +960,29 @@ async function rejectWorker(phone, reviewedBy = 'reviewer', action = 'reject') {
   const worker = await storage.getWorker(phone);
   if (!worker) throw new Error('Worker not found');
 
-  const normalizedAction = action === 'clear' ? 'clear_both' : action;
-  const isClearAction = normalizedAction.startsWith('clear');
-  const clearSide = normalizedAction.replace('clear_', '');
-  const statusText = isClearAction ? `${clearSide}_clear_copy_requested` : 'rejected';
-  const resetStatus =
-    normalizedAction === 'clear_back' ? STATUS.AWAITING_AADHAAR_BACK : STATUS.AWAITING_AADHAAR_FRONT;
   const next = await updateWorker(phone, {
-    status: isClearAction ? resetStatus : STATUS.AWAITING_AADHAAR_FRONT,
-    aadhaarRequest: isClearAction
-      ? {
-          side: clearSide,
-          requestedBy: reviewedBy,
-          requestedAt: now()
-        }
-      : {
-          side: 'both',
-          requestedBy: reviewedBy,
-          requestedAt: now()
-        },
+    status: STATUS.APP_INSTALL_CONFIRMED,
+    aadhaarRequest: null,
     review: {
-      status: statusText,
+      status: 'rejected',
       reviewedBy,
       reviewedAt: now(),
-      note: isClearAction ? `Need clearer Aadhaar ${clearSide}` : 'Aadhaar rejected'
+      note: 'Worker review rejected; identity document collection disabled for ads safety'
     }
   });
 
   await storage.appendHistory(phone, {
     type: 'system',
-    event: statusText,
+    event: 'rejected',
     reviewedBy
   });
 
-  if (isClearAction) {
-    const messageKey =
-      normalizedAction === 'clear_front'
-        ? 'clearerFront'
-        : normalizedAction === 'clear_back'
-          ? 'clearerBack'
-          : 'clearerBoth';
-    await sendWorkerText(phone, textFor(localeForWorker(worker), messageKey), `${messageKey}_sent`);
-    await meta.sendText(config.reviewerPhone, `Requested clearer Aadhaar ${clearSide} from +${phone}.`);
-  } else {
-    await sendWorkerText(phone, textFor(localeForWorker(worker), 'rejected'), 'rejected_sent');
-    await meta.sendText(config.reviewerPhone, `Rejected Aadhaar for +${phone}.`);
-  }
+  await storage.appendHistory(phone, { type: 'system', event: 'aadhaar_reviewer_action_suppressed_for_ads_safety' });
+  await sendWorkerText(phone, textFor(localeForWorker(worker), 'appContinue'), 'app_continue_sent');
+  await meta.sendText(
+    config.reviewerPhone,
+    `Identity document collection is disabled for ads safety. Sent app continuation message to +${phone}.`
+  );
   return next;
 }
 
@@ -1216,15 +991,14 @@ function reviewableWorker(worker) {
     worker &&
       worker.phone &&
       worker.review &&
-      worker.review.status === 'pending' &&
-      hasReviewableAadhaar(worker)
+      worker.review.status === 'pending'
   );
 }
 
 async function sendPendingReviewSummary(phone) {
   const pendingWorkers = (await storage.listWorkers(50)).filter(reviewableWorker);
   if (!pendingWorkers.length) {
-    await meta.sendText(phone, 'No Aadhaar reviews are pending right now.');
+    await meta.sendText(phone, 'No worker reviews are pending right now.');
     return;
   }
 
@@ -1232,7 +1006,7 @@ async function sendPendingReviewSummary(phone) {
   await meta.sendText(
     phone,
     [
-      `Pending Aadhaar reviews: ${pendingWorkers.length}`,
+      `Pending worker reviews: ${pendingWorkers.length}`,
       `Sending ${reviewCards.length} review card${reviewCards.length === 1 ? '' : 's'} now.`,
       `Admin: ${config.publicBaseUrl}/admin`
     ].join('\n')
@@ -1254,7 +1028,7 @@ async function notifyReviewerForWorker(phone) {
   const worker = await storage.getWorker(phone);
   if (!worker) throw new Error('Worker not found');
   if (!reviewableWorker(worker)) {
-    throw new Error('Worker does not have a pending Aadhaar review.');
+    throw new Error('Worker does not have a pending review.');
   }
   const notification = await notifyReviewer(worker);
   return { workerPhone: worker.phone, notification };
@@ -1302,7 +1076,7 @@ async function processReviewerMessage(phone, message) {
   const text = getText(message);
   const command = replyId || text;
 
-  const match = /^(clear_front|clear_back|clear_both|approve|reject|clear)[_\s:+-]*(\d{10,15})$/i.exec(command);
+  const match = /^(approve|reject)[_\s:+-]*(\d{10,15})$/i.exec(command);
   if (!match) {
     await sendPendingReviewSummary(phone);
     return;

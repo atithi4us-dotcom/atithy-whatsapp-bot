@@ -16,8 +16,8 @@ async function syncApprovedWorker(worker) {
       gender: worker.gender,
       currentPlace: worker.currentPlace,
       locale: localeForWorker(worker),
-      aadhaarVerified: true,
-      aadhaar: worker.aadhaar || null,
+      aadhaarVerified: false,
+      aadhaar: null,
       approvedAt: worker.approvedAt || new Date().toISOString()
     },
     {

@@ -334,33 +334,6 @@ function getStorageDiagnostics() {
   };
 }
 
-async function uploadAadhaar(phone, media) {
-  const safeName = (media.filename || `${media.id}.${media.extension || 'bin'}`).replace(/[^a-zA-Z0-9_.-]/g, '_');
-  const side = media.side ? String(media.side).replace(/[^a-zA-Z0-9_-]/g, '_') : '';
-  const storagePath = ['worker-aadhaar', phone, side, `${Date.now()}-${safeName}`]
-    .filter(Boolean)
-    .join('/');
-  const file = getBucket().file(storagePath);
-  await file.save(media.buffer, {
-    metadata: {
-      contentType: media.mimeType || 'application/octet-stream',
-      metadata: {
-        phone,
-        side,
-        source: 'whatsapp',
-        mediaId: media.id || ''
-      }
-    }
-  });
-  return {
-    storagePath,
-    filename: safeName,
-    mimeType: media.mimeType || 'application/octet-stream',
-    size: media.buffer.length,
-    uploadedAt: new Date().toISOString()
-  };
-}
-
 module.exports = {
   initializeStorage,
   getFirestore,
@@ -372,6 +345,5 @@ module.exports = {
   listWorkersPage,
   getDashboardStats,
   appendHistory,
-  claimInboundMessage,
-  uploadAadhaar
+  claimInboundMessage
 };

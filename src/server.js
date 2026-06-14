@@ -6,7 +6,6 @@ const {
   listWorkers,
   listWorkersPage,
   getWorker,
-  getBucket,
   getDashboardStats,
   getStorageDiagnostics
 } = require('./services/storage');
@@ -335,44 +334,7 @@ app.post('/admin/api/reviewer/resend-pending-alerts', requireAdmin, async (_req,
   }
 });
 
-async function streamAadhaarFile(req, res, side) {
-  try {
-    const worker = await getWorker(req.params.phone.replace(/\D/g, ''));
-    const allAadhaar = worker && worker.aadhaar;
-    const aadhaar = side && allAadhaar ? allAadhaar[side] : allAadhaar;
-    if (!aadhaar || !aadhaar.storagePath) {
-      return res.status(404).send('Aadhaar file not found');
-    }
-
-    const file = getBucket().file(aadhaar.storagePath);
-    const [exists] = await file.exists();
-    if (!exists) return res.status(404).send('Aadhaar file not found');
-
-    const [metadata] = await file.getMetadata();
-    const contentType = metadata.contentType || aadhaar.mimeType || 'application/octet-stream';
-    const filename = (aadhaar.filename || 'aadhaar').replace(/["\r\n]/g, '_');
-
-    res.setHeader('Content-Type', contentType);
-    res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
-    file.createReadStream().on('error', () => res.sendStatus(500)).pipe(res);
-  } catch (error) {
-    return res.status(500).send(error.message);
-  }
-}
-
-app.get('/admin/api/workers/:phone/aadhaar', requireAdmin, async (req, res) => {
-  setNoCacheHeaders(res);
-  return streamAadhaarFile(req, res);
-});
-
-app.get('/admin/api/workers/:phone/aadhaar/:side', requireAdmin, async (req, res) => {
-  setNoCacheHeaders(res);
-  const side = req.params.side === 'front' || req.params.side === 'back' ? req.params.side : '';
-  if (!side) return res.status(404).send('Aadhaar file not found');
-  return streamAadhaarFile(req, res, side);
-});
-
-app.post('/admin/api/workers/:phone/approve-aadhaar', requireAdmin, async (req, res) => {
+app.post('/admin/api/workers/:phone/approve-worker', requireAdmin, async (req, res) => {
   try {
     setNoCacheHeaders(res);
     const result = await approveWorker(req.params.phone.replace(/\D/g, ''), req.admin.username);
@@ -392,40 +354,10 @@ app.post('/admin/api/workers/:phone/notify-reviewer', requireAdmin, async (req, 
   }
 });
 
-app.post('/admin/api/workers/:phone/reject-aadhaar', requireAdmin, async (req, res) => {
+app.post('/admin/api/workers/:phone/reject-worker', requireAdmin, async (req, res) => {
   try {
     setNoCacheHeaders(res);
     const worker = await rejectWorker(req.params.phone.replace(/\D/g, ''), req.admin.username, 'reject');
-    return res.json({ ok: true, worker });
-  } catch (error) {
-    return res.status(400).json({ error: error.message });
-  }
-});
-
-app.post('/admin/api/workers/:phone/request-clear-aadhaar', requireAdmin, async (req, res) => {
-  try {
-    setNoCacheHeaders(res);
-    const worker = await rejectWorker(req.params.phone.replace(/\D/g, ''), req.admin.username, 'clear_both');
-    return res.json({ ok: true, worker });
-  } catch (error) {
-    return res.status(400).json({ error: error.message });
-  }
-});
-
-app.post('/admin/api/workers/:phone/request-clear-aadhaar-front', requireAdmin, async (req, res) => {
-  try {
-    setNoCacheHeaders(res);
-    const worker = await rejectWorker(req.params.phone.replace(/\D/g, ''), req.admin.username, 'clear_front');
-    return res.json({ ok: true, worker });
-  } catch (error) {
-    return res.status(400).json({ error: error.message });
-  }
-});
-
-app.post('/admin/api/workers/:phone/request-clear-aadhaar-back', requireAdmin, async (req, res) => {
-  try {
-    setNoCacheHeaders(res);
-    const worker = await rejectWorker(req.params.phone.replace(/\D/g, ''), req.admin.username, 'clear_back');
     return res.json({ ok: true, worker });
   } catch (error) {
     return res.status(400).json({ error: error.message });

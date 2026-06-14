@@ -96,12 +96,6 @@ function formatDateLabel(value) {
   });
 }
 
-function aadhaarSideUrl(worker, side) {
-  return worker.aadhaar && worker.aadhaar[side] && worker.aadhaar[side].storagePath
-    ? `/admin/api/workers/${encodeURIComponent(worker.phone)}/aadhaar/${side}`
-    : '';
-}
-
 function timestampToDate(value) {
   if (!value) return null;
   if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
@@ -254,15 +248,13 @@ function inboundPayloadReplyId(event) {
 function legacyOutboundText(event) {
   if (event.type !== 'outbound') return '';
   const labels = {
-    aadhaar_back_prompt: 'Now please upload the back side of your Aadhaar card as a clear image or PDF.',
-    aadhaar_both_received_sent:
-      'Thank you. Your Aadhaar front and back have been received and are now under verification.',
-    aadhaar_consent_prompt:
-      'Aadhaar verification consent\n\nBy selecting I agree, you allow Atithy to collect and store your Aadhaar card only for worker identity verification and onboarding approval.',
-    aadhaar_front_prompt: 'Please upload the front side of your Aadhaar card as a clear image or PDF.',
-    aadhaar_pending_sent: 'Your Aadhaar is still under verification. We will update you soon.',
-    aadhaar_required_sent: 'Aadhaar consent is required to complete worker onboarding.',
-    aadhaar_upload_prompt: 'Please upload your Aadhaar card as a clear image or PDF.',
+    aadhaar_back_prompt: 'Identity document upload prompt disabled for ads safety.',
+    aadhaar_both_received_sent: 'Identity document upload was previously received.',
+    aadhaar_consent_prompt: 'Identity document consent prompt disabled for ads safety.',
+    aadhaar_front_prompt: 'Identity document upload prompt disabled for ads safety.',
+    aadhaar_pending_sent: 'Identity document review was previously pending.',
+    aadhaar_required_sent: 'Identity document requirement disabled for ads safety.',
+    aadhaar_upload_prompt: 'Identity document upload prompt disabled for ads safety.',
     app_install_prompt_sent: 'Please download and install the Atithy app to receive and accept jobs.',
     choose_option_sent: 'Please choose an option below.',
     gender_prompt: 'Please select your gender.',
@@ -271,7 +263,7 @@ function legacyOutboundText(event) {
     name_prompt: 'Please send your full name.',
     not_now_sent: 'Okay. You can message us again later if you want to join Atithy.',
     place_prompt: 'Please select your current district in Kerala.',
-    rejected_sent: 'Your Aadhaar could not be verified. Please upload a valid Aadhaar card again.',
+    rejected_sent: 'Worker review could not be approved. Continue in the Atithy app.',
     start_sent: 'Welcome to Atithy.'
   };
   return labels[event.event] || '';
@@ -309,24 +301,25 @@ function eventText(event, context = {}) {
     name_prompt: 'Name prompt sent',
     gender_prompt: 'Gender prompt sent',
     place_prompt: 'District prompt sent',
-    aadhaar_consent_prompt: 'Aadhaar consent prompt sent',
-    aadhaar_upload_prompt: 'Aadhaar upload prompt sent',
-    aadhaar_front_prompt: 'Aadhaar front upload prompt sent',
-    aadhaar_back_prompt: 'Aadhaar back upload prompt sent',
+    aadhaar_consent_prompt: 'Identity document consent prompt disabled',
+    aadhaar_upload_prompt: 'Identity document upload prompt disabled',
+    aadhaar_front_prompt: 'Identity document front prompt disabled',
+    aadhaar_back_prompt: 'Identity document back prompt disabled',
     app_install_confirmed: 'Worker confirmed app install',
     app_install_prompt_resent: 'App install prompt resent',
     app_install_prompt_sent: 'App install prompt sent',
-    aadhaar_approved: 'Aadhaar approved',
-    aadhaar_back_uploaded: 'Aadhaar back uploaded',
-    aadhaar_front_uploaded: 'Aadhaar front uploaded',
-    back_clear_copy_requested: 'Clear Aadhaar back requested',
-    both_clear_copy_requested: 'Clear Aadhaar front and back requested',
-    front_clear_copy_requested: 'Clear Aadhaar front requested',
+    aadhaar_approved: 'Legacy identity approval',
+    aadhaar_back_uploaded: 'Legacy identity back uploaded',
+    aadhaar_front_uploaded: 'Legacy identity front uploaded',
+    back_clear_copy_requested: 'Legacy clearer back request disabled',
+    both_clear_copy_requested: 'Legacy clearer document request disabled',
+    front_clear_copy_requested: 'Legacy clearer front request disabled',
     language_prompt_sent: 'Language selection sent',
     message_received: 'Message received',
     job_acceptance_video_sent: 'Job acceptance video sent',
     post_approval_guidance_retry_failed: 'Post-approval guidance failed',
-    rejected: 'Aadhaar rejected',
+    rejected: 'Worker rejected',
+    worker_approved: 'Worker approved',
     start_sent: 'Onboarding started',
     worker_created: 'Worker profile created',
     worker_reset_by_chat_command: 'Worker restarted the chat'
@@ -359,18 +352,7 @@ function renderChatExtras(worker, event) {
   }
   if (event.locale) details.push(escapeHtml(`Language: ${event.locale}`));
   if (event.storagePath) {
-    const side =
-      event.event === 'aadhaar_front_uploaded'
-        ? 'front'
-        : event.event === 'aadhaar_back_uploaded'
-          ? 'back'
-          : '';
-    const fileUrl = side ? aadhaarSideUrl(worker, side) : '';
-    details.push(
-      fileUrl
-        ? `<a href="${fileUrl}" target="_blank" rel="noopener">View file</a>`
-        : escapeHtml(`File: ${event.storagePath}`)
-    );
+    details.push(escapeHtml('Legacy file access disabled'));
   }
   if (event.reviewedBy) details.push(escapeHtml(`Reviewer: +${event.reviewedBy}`));
   if (event.syncResult) {
@@ -539,62 +521,28 @@ function renderWorkers(options = {}) {
   workersEl.scrollTop = scrollTop;
 }
 
-function renderReviewPanel(worker, aadhaarFrontUrl, aadhaarBackUrl, legacyAadhaarUrl) {
+function renderReviewPanel(worker) {
   return `
     <aside class="review-panel">
       <h3>Review</h3>
       <div class="review-fields">
         <div><span>Gender</span><strong>${escapeHtml(fmt(worker.gender))}</strong></div>
         <div><span>Current place</span><strong>${escapeHtml(fmt(worker.currentPlace))}</strong></div>
-        <div><span>Aadhaar consent</span><strong>${
-          worker.aadhaarConsent && worker.aadhaarConsent.accepted ? 'Accepted' : '-'
-        }</strong></div>
         <div><span>Review status</span><strong>${escapeHtml(fmt(worker.review && worker.review.status))}</strong></div>
-        <div><span>Front file</span><strong>${escapeHtml(
-          fmt(worker.aadhaar && worker.aadhaar.front && worker.aadhaar.front.filename)
-        )}</strong></div>
-        <div><span>Back file</span><strong>${escapeHtml(
-          fmt(worker.aadhaar && worker.aadhaar.back && worker.aadhaar.back.filename)
-        )}</strong></div>
-      </div>
-
-      <div class="file-actions">
-        ${
-          aadhaarFrontUrl
-            ? `<a class="button-link" href="${aadhaarFrontUrl}" target="_blank" rel="noopener">View Front</a>`
-            : ''
-        }
-        ${
-          aadhaarBackUrl
-            ? `<a class="button-link" href="${aadhaarBackUrl}" target="_blank" rel="noopener">View Back</a>`
-            : ''
-        }
-        ${
-          legacyAadhaarUrl
-            ? `<a class="button-link" href="${legacyAadhaarUrl}" target="_blank" rel="noopener">View Old</a>`
-            : ''
-        }
+        <div><span>App install</span><strong>${escapeHtml(fmt(worker.appInstall && worker.appInstall.status))}</strong></div>
+        <div><span>Identity documents</span><strong>Disabled</strong></div>
       </div>
 
       <div class="actions">
         <button class="ghost" data-action="notifyReviewer">Notify reviewer</button>
-        <button data-action="approve">Approve Aadhaar</button>
-        <button class="danger" data-action="reject">Reject Aadhaar</button>
-        <button class="ghost" data-action="clearFront">Request clear front</button>
-        <button class="ghost" data-action="clearBack">Request clear back</button>
-        <button class="ghost" data-action="clearBoth">Request both again</button>
+        <button data-action="approve">Approve worker</button>
+        <button class="danger" data-action="reject">Reject worker</button>
       </div>
     </aside>
   `;
 }
 
 function renderDetails(worker, options = {}) {
-  const legacyAadhaarUrl =
-    worker.aadhaar && worker.aadhaar.storagePath
-      ? `/admin/api/workers/${encodeURIComponent(worker.phone)}/aadhaar`
-      : '';
-  const aadhaarFrontUrl = aadhaarSideUrl(worker, 'front');
-  const aadhaarBackUrl = aadhaarSideUrl(worker, 'back');
   const existingConversation = detailsEl.querySelector('.conversation');
   const sameWorker = existingConversation && existingConversation.dataset.phone === worker.phone;
   const previousThread = sameWorker ? detailsEl.querySelector('.chat-thread') : null;
@@ -618,7 +566,7 @@ function renderDetails(worker, options = {}) {
         </header>
         ${renderHistory(worker)}
       </section>
-      ${renderReviewPanel(worker, aadhaarFrontUrl, aadhaarBackUrl, legacyAadhaarUrl)}
+      ${renderReviewPanel(worker)}
     </div>
   `;
 
@@ -716,12 +664,9 @@ detailsEl.addEventListener('click', async (event) => {
   const button = event.target.closest('button[data-action]');
   if (!button) return;
   const actionMap = {
-    approve: 'approve-aadhaar',
+    approve: 'approve-worker',
     notifyReviewer: 'notify-reviewer',
-    reject: 'reject-aadhaar',
-    clearFront: 'request-clear-aadhaar-front',
-    clearBack: 'request-clear-aadhaar-back',
-    clearBoth: 'request-clear-aadhaar'
+    reject: 'reject-worker'
   };
   const conversation = detailsEl.querySelector('.conversation');
   const phone = conversation ? conversation.dataset.phone : '';

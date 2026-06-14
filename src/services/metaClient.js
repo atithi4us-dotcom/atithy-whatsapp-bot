@@ -138,7 +138,7 @@ async function sendDocumentById(to, mediaId, filename, caption) {
     type: 'document',
     document: {
       id: mediaId,
-      filename: filename || 'aadhaar.pdf',
+      filename: filename || 'document.pdf',
       caption
     }
   });
